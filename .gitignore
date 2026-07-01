@@ -45,4 +45,9 @@ next-env.d.ts
 # AI / IDE instructions
 AGENTS.md
 CLAUDE.md
-.opencode/skills/
+.opencode/
+
+# docs
+docs/
+requisitos.md
+indiceSkills.md
