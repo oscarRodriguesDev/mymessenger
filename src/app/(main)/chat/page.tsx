@@ -1,0 +1,199 @@
+'use client';
+
+import { useAuth } from '@/providers/AuthProvider';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { Avatar } from '@/components/ui/avatar';
+import { ChatArea } from '@/features/chat/components/ChatArea';
+
+interface Member {
+  id: string;
+  username: string;
+  fullName: string;
+  avatarUrl: string | null;
+}
+
+interface LastMessage {
+  text: string | null;
+  sender: string;
+  createdAt: string;
+}
+
+interface Conversation {
+  id: string;
+  type: string;
+  name: string | null;
+  avatarUrl: string | null;
+  lastMessage: LastMessage | null;
+  members: Member[];
+  updatedAt: string;
+}
+
+export default function ChatPage() {
+  const { profile, loading, signOut } = useAuth();
+  const router = useRouter();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [loadingConversations, setLoadingConversations] = useState(true);
+
+  useEffect(() => {
+    if (!loading && !profile) {
+      router.push('/login');
+    }
+  }, [loading, profile, router]);
+
+  useEffect(() => {
+    if (!profile) return;
+
+    let cancelled = false;
+    fetch('/api/conversations')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => { if (!cancelled) setConversations(data); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingConversations(false); });
+    return () => { cancelled = true; };
+  }, [profile]);
+
+  const getConversationName = (conv: Conversation) => {
+    if (conv.name) return conv.name;
+    const otherMember = conv.members.find(m => m.id !== profile?.id);
+    return otherMember?.fullName || 'Unknown';
+  };
+
+  const getConversationAvatar = (conv: Conversation) => {
+    if (conv.avatarUrl) return conv.avatarUrl;
+    const otherMember = conv.members.find(m => m.id !== profile?.id);
+    return otherMember?.avatarUrl;
+  };
+
+  const filteredConversations = conversations.filter(conv => {
+    const name = getConversationName(conv).toLowerCase();
+    return name.includes(search.toLowerCase());
+  });
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!profile) return null;
+
+  // If a conversation is selected, show chat view
+  if (selectedConversationId) {
+    const selectedConversation = conversations.find(c => c.id === selectedConversationId);
+    const conversationName = selectedConversation ? getConversationName(selectedConversation) : 'Chat';
+
+    return (
+      <div className="flex h-full flex-col">
+        <header className="flex items-center gap-3 border-b border-border bg-card p-4">
+          <button
+            onClick={() => setSelectedConversationId(null)}
+            className="rounded-md p-1.5 hover:bg-secondary"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <Avatar
+            src={selectedConversation?.avatarUrl}
+            fallback={conversationName}
+            size="sm"
+          />
+          <h1 className="text-lg font-semibold">{conversationName}</h1>
+        </header>
+        <ChatArea
+          conversationId={selectedConversationId}
+          currentUserId={profile.id}
+        />
+      </div>
+    );
+  }
+
+  // Conversations list view
+  return (
+    <div className="flex h-full flex-col">
+      <header className="flex items-center justify-between border-b border-border bg-card p-4">
+        <h1 className="text-lg font-semibold">Mensagens</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.push('/contacts')}
+            title="Nova conversa"
+            className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+          <button
+            onClick={signOut}
+            title="Sair"
+            className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div className="p-4">
+        <input
+          type="text"
+          placeholder="Buscar conversas..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm focus:border-primary focus:outline-none"
+        />
+      </div>
+
+      <div className="flex-1 overflow-auto">
+        {loadingConversations ? (
+          <div className="flex items-center justify-center p-8">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : filteredConversations.length === 0 ? (
+          <div className="p-4 text-center text-sm text-muted-foreground">
+            {search ? 'Nenhuma conversa encontrada' : 'Nenhuma conversa ainda'}
+          </div>
+        ) : (
+          filteredConversations.map(conv => (
+            <button
+              key={conv.id}
+              onClick={() => setSelectedConversationId(conv.id)}
+              className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-secondary"
+            >
+              <Avatar
+                src={getConversationAvatar(conv)}
+                fallback={getConversationName(conv)}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium truncate">
+                    {getConversationName(conv)}
+                  </span>
+                  {conv.lastMessage && (
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(conv.lastMessage.createdAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  )}
+                </div>
+                {conv.lastMessage && (
+                  <p className="text-sm text-muted-foreground truncate">
+                    {conv.lastMessage.sender}: {conv.lastMessage.text}
+                  </p>
+                )}
+              </div>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}

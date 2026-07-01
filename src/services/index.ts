@@ -1,0 +1,6 @@
+// Server-only services (import only in server components, API routes, etc.)
+export { userService } from './user.service';
+export { conversationService } from './conversation.service';
+export { messageService } from './message.service';
+export { authService } from './auth.service';
+export { followService } from './follow.service';
