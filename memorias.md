@@ -1,0 +1,1 @@
+Modificações recentes detectadas: arquivos package.json e package-lock.json foram modificados. | AUTOR: USUARIO
