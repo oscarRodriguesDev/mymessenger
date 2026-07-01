@@ -108,6 +108,7 @@ export default function ChatPage() {
         <ChatArea
           conversationId={selectedConversationId}
           currentUserId={profile.id}
+          members={selectedConversation?.members ?? []}
         />
       </div>
     );

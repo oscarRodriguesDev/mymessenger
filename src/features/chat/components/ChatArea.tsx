@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { createClient } from '@/lib/supabase/client';
 
 interface Sender {
   id: string;
@@ -27,9 +28,17 @@ interface Message {
 interface ChatAreaProps {
   conversationId: string;
   currentUserId: string;
+  members: Member[];
 }
 
-export function ChatArea({ conversationId, currentUserId }: ChatAreaProps) {
+interface Member {
+  id: string;
+  username: string;
+  fullName: string;
+  avatarUrl: string | null;
+}
+
+export function ChatArea({ conversationId, currentUserId, members }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -38,11 +47,50 @@ export function ChatArea({ conversationId, currentUserId }: ChatAreaProps) {
 
   useEffect(() => {
     let cancelled = false;
+    const supabase = createClient();
+
     fetch(`/api/messages?conversationId=${conversationId}`)
       .then(res => res.ok ? res.json() : [])
       .then(data => { if (!cancelled) setMessages(data.reverse()); })
       .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+
+    const channel = supabase
+      .channel(`messages:${conversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const raw = payload.new as Record<string, unknown>;
+          const msgId = raw.id as string;
+          const senderId = raw.sender_id as string;
+          const senderMember = members.find(m => m.id === senderId);
+          setMessages(prev => {
+            if (prev.some(m => m.id === msgId)) return prev;
+            return [...prev, {
+              id: msgId,
+              conversationId: raw.conversation_id as string,
+              senderId,
+              type: raw.type as string,
+              text: raw.text as string | null,
+              fileUrl: raw.file_url as string | null,
+              status: raw.status as string,
+              createdAt: raw.created_at as string,
+              sender: senderMember ?? { id: '', username: '', fullName: '', avatarUrl: null },
+            }];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
   }, [conversationId]);
 
   useEffect(() => {
