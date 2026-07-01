@@ -1,1 +1,3 @@
 Modificações recentes detectadas: arquivos package.json e package-lock.json foram modificados. | AUTOR: USUARIO
+
+Corrigido ChatArea.tsx: nomes das colunas no filtro e payload do Supabase Realtime estavam em snake_case (conversation_id, sender_id, etc.) mas Prisma mapeia as colunas em camelCase (conversationId, senderId, etc.) — isso impedia o recebimento de novas mensagens em tempo real. | AUTOR: VIBECODE

@@ -62,24 +62,24 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
+          filter: `conversationId=eq.${conversationId}`,
         },
         (payload) => {
           const raw = payload.new as Record<string, unknown>;
           const msgId = raw.id as string;
-          const senderId = raw.sender_id as string;
+          const senderId = raw.senderId as string;
           const senderMember = members.find(m => m.id === senderId);
           setMessages(prev => {
             if (prev.some(m => m.id === msgId)) return prev;
             return [...prev, {
               id: msgId,
-              conversationId: raw.conversation_id as string,
+              conversationId: raw.conversationId as string,
               senderId,
               type: raw.type as string,
               text: raw.text as string | null,
-              fileUrl: raw.file_url as string | null,
+              fileUrl: raw.fileUrl as string | null,
               status: raw.status as string,
-              createdAt: raw.created_at as string,
+              createdAt: raw.createdAt as string,
               sender: senderMember ?? { id: '', username: '', fullName: '', avatarUrl: null },
             }];
           });
