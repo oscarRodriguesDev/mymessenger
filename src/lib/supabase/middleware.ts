@@ -1,6 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { isDesktopFromUA } from '@/lib/desktop-detection';
 
 export async function updateSession(request: NextRequest) {
   const response = NextResponse.next({
@@ -31,44 +30,42 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // ───────────────────────────────────────────────────────────────
-  // Desktop detection — bloqueia acesso de computadores desktop
-  // ───────────────────────────────────────────────────────────────
-  const userAgent = request.headers.get('user-agent');
-  const isDesktop = isDesktopFromUA(userAgent);
+  const pathname = request.nextUrl.pathname;
 
-  // Rotas públicas que funcionam no desktop (QR web, scan, etc.)
-  const desktopPublicRoutes = ['/desktop-restricted', '/web-access', '/scan'];
-  const isDesktopPublicRoute = desktopPublicRoutes.some((route) =>
-    request.nextUrl.pathname.startsWith(route)
+  // ───────────────────────────────────────────────────────────────
+  // Rotas PERMITIDAS no desktop (fluxo QR Web)
+  // ───────────────────────────────────────────────────────────────
+  const desktopAllowedRoutes = ['/web-access', '/scan', '/desktop-restricted'];
+  const isDesktopAllowed = desktopAllowedRoutes.some((route) =>
+    pathname.startsWith(route)
   );
 
-  if (isDesktop && !isDesktopPublicRoute) {
-    const pathname = request.nextUrl.pathname;
+  // APIs do QR também são permitidas no desktop
+  const isQrApi = pathname.startsWith('/api/qr/');
 
-    // API routes do QR são permitidas no desktop (necessárias para o fluxo web)
-    const qrApiRoutes = ['/api/qr/'];
-    const isQrApiRoute = qrApiRoutes.some((route) =>
-      pathname.startsWith(route)
-    );
+  if (isDesktopAllowed || isQrApi) {
+    // Permitir acesso normal, continua para autenticação
+  } else {
+    // ───────────────────────────────────────────────────────────────
+    // Detecção desktop para outras rotas
+    // ───────────────────────────────────────────────────────────────
+    const userAgent = request.headers.get('user-agent');
+    const isDesktop = isDesktopFromUA(userAgent);
 
-    if (isQrApiRoute) {
-      // Permitir APIs do QR continuarem
-      return response;
+    if (isDesktop) {
+      // API routes: retornar 403 JSON
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json(
+          { error: 'Acesso não permitido em desktop. Use um dispositivo móvel.' },
+          { status: 403 }
+        );
+      }
+
+      // Páginas: redirecionar para tela informativa
+      const url = request.nextUrl.clone();
+      url.pathname = '/desktop-restricted';
+      return NextResponse.redirect(url);
     }
-
-    // Outras API routes: retornar 403 JSON
-    if (pathname.startsWith('/api/')) {
-      return NextResponse.json(
-        { error: 'Acesso não permitido em desktop. Use um dispositivo móvel.' },
-        { status: 403 }
-      );
-    }
-
-    // Páginas: redirecionar para tela informativa
-    const url = request.nextUrl.clone();
-    url.pathname = '/desktop-restricted';
-    return NextResponse.redirect(url);
   }
 
   // ───────────────────────────────────────────────────────────────
@@ -98,4 +95,21 @@ export async function updateSession(request: NextRequest) {
   }
 
   return response;
+}
+
+function isDesktopFromUA(userAgent: string | null): boolean {
+  if (!userAgent) return false;
+
+  const ua = userAgent.toLowerCase();
+
+  // Keywords mobile/tablet
+  const mobileKeywords = [
+    'mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry',
+    'iemobile', 'opera mini', 'webos', 'touch',
+  ];
+
+  const isMobileUA = mobileKeywords.some((keyword) => ua.includes(keyword));
+
+  // Se não tem keyword mobile, provavelmente é desktop
+  return !isMobileUA;
 }
