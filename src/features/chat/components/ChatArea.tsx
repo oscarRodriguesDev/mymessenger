@@ -123,57 +123,75 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
       })
       .finally(() => { if (!cancelled) setLoading(false); });
 
-    // 2. Escuta eventos do Realtime (usa snake_case nos filtros — nomes reais do banco)
-    const channel = supabase
-      .channel(`messages:${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        async (payload) => {
-          const raw = mapPayload(payload.new as Record<string, unknown>);
-          const senderMember = members.find(m => m.id === raw.senderId);
+    // 2. Escuta eventos em tempo real via Broadcast + Realtime
+    // Usamos Broadcast para status (mais confiável que UPDATE do Realtime)
+    const channel = supabase.channel(`messages:${conversationId}`);
 
-          // Se eu recebi a mensagem (não sou o remetente), marco como lida direto
-          if (raw.senderId !== currentUserId) {
-            await markAsLida(raw.id);
-          }
+    // Broadcast: recebe atualizações de status enviadas por outros clientes
+    channel.on('broadcast', { event: 'status_update' }, (payload) => {
+      const { messageId, status } = payload.payload as { messageId: string; status: MessageStatus };
+      setMessages(prev => prev.map(msg =>
+        msg.id === messageId ? { ...msg, status } : msg
+      ));
+    });
 
-          setMessages(prev => {
-            if (prev.some(m => m.id === raw.id)) return prev;
-            return [...prev, {
-              ...raw,
-              status: raw.senderId !== currentUserId
-                ? MessageStatus.lida       // já marquei como lida no servidor
-                : raw.status,
-              sender: senderMember ?? { id: '', username: '', fullName: '', avatarUrl: null },
-              isOptimistic: false,
-            }];
+    // Realtime INSERT: novas mensagens
+    channel.on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      async (payload) => {
+        const raw = mapPayload(payload.new as Record<string, unknown>);
+        const senderMember = members.find(m => m.id === raw.senderId);
+
+        // Se eu recebi a mensagem (não sou o remetente)
+        if (raw.senderId !== currentUserId) {
+          // Marca como lida no servidor
+          await markAsLida(raw.id);
+          // Avisa todos os clientes (incluindo o remetente) via Broadcast
+          channel.send({
+            type: 'broadcast',
+            event: 'status_update',
+            payload: { messageId: raw.id, status: MessageStatus.lida },
           });
         }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const raw = mapPayload(payload.new as Record<string, unknown>);
-          setMessages(prev => prev.map(msg =>
-            msg.id === raw.id
-              ? { ...msg, status: raw.status }
-              : msg
-          ));
-        }
-      )
-      .subscribe();
+
+        setMessages(prev => {
+          if (prev.some(m => m.id === raw.id)) return prev;
+          return [...prev, {
+            ...raw,
+            status: raw.senderId !== currentUserId
+              ? MessageStatus.lida
+              : raw.status,
+            sender: senderMember ?? { id: '', username: '', fullName: '', avatarUrl: null },
+            isOptimistic: false,
+          }];
+        });
+      }
+    );
+
+    // Realtime UPDATE: fallback para mudanças diretas no banco
+    channel.on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      (payload) => {
+        const raw = mapPayload(payload.new as Record<string, unknown>);
+        setMessages(prev => prev.map(msg =>
+          msg.id === raw.id ? { ...msg, status: raw.status } : msg
+        ));
+      }
+    );
+
+    channel.subscribe();
 
     return () => {
       cancelled = true;
