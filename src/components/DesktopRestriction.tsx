@@ -1,24 +1,45 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { isDesktopFromBrowser } from '@/lib/desktop-detection';
 
 export function DesktopRestriction({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [blocked, setBlocked] = useState(false);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    setBlocked(isDesktopFromBrowser());
+    // Rotas permitidas no desktop (fluxo QR Web)
+    const allowedRoutes = ['/web-access', '/scan', '/desktop-restricted'];
+    const isAllowedRoute = allowedRoutes.some((route) =>
+      pathname?.startsWith(route)
+    );
+
+    // Só bloqueia se for desktop E não estiver em rota permitida
+    if (isAllowedRoute) {
+      setBlocked(false);
+    } else {
+      setBlocked(isDesktopFromBrowser());
+    }
+    
     setChecking(false);
 
-    // Re-checar se a tela for redimensionada (ex: usuário conecta um monitor no notebook)
-    const handleResize = () => setBlocked(isDesktopFromBrowser());
+    // Re-checar se a tela for redimensionada
+    const handleResize = () => {
+      if (isAllowedRoute) {
+        setBlocked(false);
+      } else {
+        setBlocked(isDesktopFromBrowser());
+      }
+    };
+    
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [pathname]);
 
   if (checking) {
-    // Evita flash de conteúdo — mostra nada enquanto verifica
+    // Evita flash de conteúdo
     return null;
   }
 
