@@ -46,7 +46,18 @@ export async function updateSession(request: NextRequest) {
   if (isDesktop && !isDesktopPublicRoute) {
     const pathname = request.nextUrl.pathname;
 
-    // API routes: retornar 403 JSON
+    // API routes do QR são permitidas no desktop (necessárias para o fluxo web)
+    const qrApiRoutes = ['/api/qr/'];
+    const isQrApiRoute = qrApiRoutes.some((route) =>
+      pathname.startsWith(route)
+    );
+
+    if (isQrApiRoute) {
+      // Permitir APIs do QR continuarem
+      return response;
+    }
+
+    // Outras API routes: retornar 403 JSON
     if (pathname.startsWith('/api/')) {
       return NextResponse.json(
         { error: 'Acesso não permitido em desktop. Use um dispositivo móvel.' },
