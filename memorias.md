@@ -13,3 +13,5 @@ Corrigido Realtime: filtros usavam camelCase (conversationId) mas o Supabase Rea
 Implementado trigger no banco: criada tabela message_status_events + trigger trg_message_status_change que insere evento quando status da mensagem muda. Frontend escuta INSERT na tabela via Realtime para atualizar status em tempo real. Removeu lógica de Broadcast (não confiável). | AUTOR: VIBECODE
 
 Estado atual: status funciona via trigger → INSERT Realtime → frontend atualiza em tempo real. Pendente: issue no ícone de status que mostrava a palavra "lida" (já corrigido). | AUTOR: VIBECODE
+
+Criada migração manual `20260702000001_add_message_status_enum_and_status_events` para sincronizar schema Prisma (que já estava com enum MessageStatus) com o banco PostgreSQL. O banco ainda tinha a coluna `status` como TEXT (criado na migração inicial), causando erro `ColumnNotFound` no driver adapter do Prisma ao tentar `prisma.message.update()`. A migração manual converteu a coluna para o enum nativo do PostgreSQL e criou a tabela `message_status_events` que estava faltando. | AUTOR: VIBECODE
