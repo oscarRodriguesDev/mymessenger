@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
 import { HiCheck, HiOutlineClock } from 'react-icons/hi';
-import { MessageStatus } from '@prisma/client';
+import { MessageStatus } from '@/features/chat/message-status';
 
 interface Sender {
   id: string;
