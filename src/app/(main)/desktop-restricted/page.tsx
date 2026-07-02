@@ -1,35 +1,4 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import { isDesktopFromBrowser } from '@/lib/desktop-detection';
-
-export function DesktopRestriction({ children }: { children: React.ReactNode }) {
-  const [blocked, setBlocked] = useState(false);
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    setBlocked(isDesktopFromBrowser());
-    setChecking(false);
-
-    // Re-checar se a tela for redimensionada (ex: usuário conecta um monitor no notebook)
-    const handleResize = () => setBlocked(isDesktopFromBrowser());
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  if (checking) {
-    // Evita flash de conteúdo — mostra nada enquanto verifica
-    return null;
-  }
-
-  if (blocked) {
-    return <DesktopBlockScreen />;
-  }
-
-  return <>{children}</>;
-}
-
-function DesktopBlockScreen() {
+export default function DesktopRestrictedPage() {
   return (
     <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background p-6 text-center">
       <div className="max-w-md space-y-6">
