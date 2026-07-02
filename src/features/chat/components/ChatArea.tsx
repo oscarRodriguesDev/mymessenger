@@ -264,17 +264,25 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="flex-1 overflow-auto p-4 space-y-4">
+    <div className="flex flex-1 flex-col bg-gradient-to-b from-background to-secondary/10">
+      <div className="flex-1 overflow-auto p-6 space-y-4">
+        {messages.length === 0 && (
+          <div className="flex h-full items-center justify-center">
+            <div className="text-center">
+              <div className="mb-3 text-4xl">💬</div>
+              <p className="text-muted-foreground">Nenhuma mensagem ainda. Comece a conversa!</p>
+            </div>
+          </div>
+        )}
         {messages.map(message => {
           const isOwn = message.senderId === currentUserId;
           return (
             <div
               key={message.id}
-              className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${isOwn ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-200`}
             >
               <div
-                className={`flex items-end gap-2 max-w-[70%] ${isOwn ? 'flex-row-reverse' : ''
+                className={`flex items-end gap-3 max-w-[70%] ${isOwn ? 'flex-row-reverse' : ''
                   }`}
               >
                 {!isOwn && (
@@ -285,20 +293,20 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
                   />
                 )}
                 <div
-                  className={`rounded-lg px-4 py-2 ${isOwn
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-foreground'
+                  className={`rounded-2xl px-5 py-3 ${isOwn
+                    ? 'bg-primary text-primary-foreground shadow-lg'
+                    : 'bg-secondary text-foreground border border-border'
                     }`}
                 >
                   {!isOwn && (
-                    <p className="text-xs font-medium mb-1">
+                    <p className="text-xs font-semibold mb-1 text-muted-foreground">
                       {message.sender.fullName}
                     </p>
                   )}
-                  <p className="text-sm">{message.text}</p>
-                  <div className="flex items-center justify-end gap-1 mt-1">
+                  <p className="text-sm break-words">{message.text}</p>
+                  <div className="flex items-center justify-end gap-2 mt-2">
                     <span
-                      className={`text-xs ${isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                      className={`text-xs ${isOwn ? 'text-primary-foreground/60' : 'text-muted-foreground'
                         }`}
                     >
                       {new Date(message.createdAt).toLocaleTimeString([], {
@@ -316,17 +324,22 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSend} className="border-t border-border p-4">
-        <div className="flex gap-2">
+      <form onSubmit={handleSend} className="border-t border-border bg-card/50 p-4 backdrop-blur-sm">
+        <div className="flex gap-3 max-w-4xl mx-auto">
           <Input
             id="message"
-            placeholder="Type a message..."
+            placeholder="Digite uma mensagem..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             disabled={sending}
+            className="flex-1"
           />
-          <Button type="submit" disabled={!newMessage.trim() || sending}>
-            Send
+          <Button 
+            type="submit" 
+            disabled={!newMessage.trim() || sending}
+            className="px-6"
+          >
+            {sending ? 'Enviando...' : 'Enviar'}
           </Button>
         </div>
       </form>

@@ -4,6 +4,8 @@ import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 function LoginForm() {
   const [identifier, setIdentifier] = useState('');
@@ -24,80 +26,71 @@ function LoginForm() {
       await signIn(identifier, password);
       router.push('/chat');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign in');
+      setError(err instanceof Error ? err.message : 'Falha ao entrar');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold">Messenger</h1>
-        <p className="text-muted-foreground">Sign in to your account</p>
+    <div className="space-y-8">
+      <div className="text-center space-y-2">
+        <h1 className="text-4xl font-bold text-foreground">Messenger</h1>
+        <p className="text-muted-foreground text-sm">Entre na sua conta para continuar</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         {message === 'check-email' && (
-          <div className="rounded-md bg-primary/10 p-3 text-sm">
-            Account created! Check your email for the confirmation link.
+          <div className="rounded-lg bg-primary/10 border border-primary/20 p-4 text-sm text-primary">
+            Conta criada! Verifique seu email para confirmar a inscrição.
           </div>
         )}
         {error && (
-          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive">
             {error}
           </div>
         )}
 
-        <div>
-          <label htmlFor="identifier" className="block text-sm font-medium">
-            Username or Email
-          </label>
-          <input
-            id="identifier"
-            type="text"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            required
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            placeholder="johndoe or you@example.com"
-          />
-        </div>
+        <Input
+          id="identifier"
+          type="text"
+          label="Nome de usuário ou Email"
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+          required
+          placeholder="seu_nome ou voce@email.com"
+        />
 
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            placeholder="••••••••"
-          />
-        </div>
+        <Input
+          id="password"
+          type="password"
+          label="Senha"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          placeholder="••••••••"
+        />
 
-        <button
+        <Button
           type="submit"
           disabled={loading}
-          className="w-full rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          size="lg"
+          className="w-full"
         >
-          {loading ? 'Signing in...' : 'Sign in'}
-        </button>
+          {loading ? 'Entrando...' : 'Entrar'}
+        </Button>
       </form>
 
       <div className="text-center text-sm">
-        <Link href="/forgot-password" className="text-primary hover:underline">
-          Forgot password?
+        <Link href="/forgot-password" className="text-primary hover:text-primary/80 transition-colors font-medium">
+          Esqueceu a senha?
         </Link>
       </div>
 
-      <div className="text-center text-sm">
-        Don&apos;t have an account?{' '}
-        <Link href="/register" className="text-primary hover:underline">
-          Sign up
+      <div className="text-center text-sm text-muted-foreground">
+        Não tem uma conta?{' '}
+        <Link href="/register" className="text-primary hover:text-primary/80 transition-colors font-medium">
+          Se inscreva
         </Link>
       </div>
     </div>

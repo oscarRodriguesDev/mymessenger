@@ -28,21 +28,21 @@ export function Navigation() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex border-b border-border bg-card">
+    <nav className="sticky top-0 z-50 flex border-b border-border bg-card/95 backdrop-blur-sm shadow-sm">
       {navItems.map((item) => {
         const isActive = pathname.startsWith(item.href);
         return (
           <Link
             key={item.href}
             href={item.href}
-            className={`flex flex-1 items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
+            className={`flex flex-1 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all duration-200 ${
               isActive
-                ? 'border-b-2 border-primary text-primary'
-                : 'text-muted-foreground hover:bg-secondary'
+                ? 'border-b-2 border-primary text-primary bg-primary/5'
+                : 'text-muted-foreground hover:text-foreground hover:bg-secondary/30'
             }`}
           >
             {item.icon}
-            <span>{item.label}</span>
+            <span className="hidden sm:inline">{item.label}</span>
           </Link>
         );
       })}
