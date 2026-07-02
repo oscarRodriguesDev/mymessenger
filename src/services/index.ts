@@ -4,3 +4,4 @@ export { conversationService } from './conversation.service';
 export { messageService } from './message.service';
 export { authService } from './auth.service';
 export { followService } from './follow.service';
+export { qrAuthService } from './qr-auth.service';

@@ -173,3 +173,26 @@ model Device {
   @@index([pushToken])
   @@map("devices")
 }
+
+enum QrAuthStatus {
+  pending
+  confirmed
+  expired
+}
+
+model QrAuthSession {
+  id        String        @id @default(uuid())
+  token     String        @unique
+  userId    String?
+  authId    String?
+  status    QrAuthStatus  @default(pending)
+  userAgent String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  expiresAt DateTime
+
+  @@index([token])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("qr_auth_sessions")
+}

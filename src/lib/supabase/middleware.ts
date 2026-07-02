@@ -36,9 +36,14 @@ export async function updateSession(request: NextRequest) {
   // ───────────────────────────────────────────────────────────────
   const userAgent = request.headers.get('user-agent');
   const isDesktop = isDesktopFromUA(userAgent);
-  const isDesktopRestrictedPage = request.nextUrl.pathname === '/desktop-restricted';
 
-  if (isDesktop && !isDesktopRestrictedPage) {
+  // Rotas públicas que funcionam no desktop (QR web, scan, etc.)
+  const desktopPublicRoutes = ['/desktop-restricted', '/web-access', '/scan'];
+  const isDesktopPublicRoute = desktopPublicRoutes.some((route) =>
+    request.nextUrl.pathname.startsWith(route)
+  );
+
+  if (isDesktop && !isDesktopPublicRoute) {
     const pathname = request.nextUrl.pathname;
 
     // API routes: retornar 403 JSON
