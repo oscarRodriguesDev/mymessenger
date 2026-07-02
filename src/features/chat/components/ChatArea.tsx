@@ -75,6 +75,7 @@ function MessageStatusIcon({ status, isOwn }: { status: MessageStatus; isOwn: bo
       <span className="inline-flex items-center gap-0.5">
         <IoCheckmarkDoneSharp color={tickColor} className="w-3 h-3" />
         <IoCheckmarkDoneSharp color={tickColor} className="w-3 h-3 -ml-1" />
+        lida
       </span>
     );
   }
