@@ -2,6 +2,14 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const userAgent = request.headers.get('user-agent') || '';
+  
+  // DEBUG: Log para verificar o que está acontecendo
+  console.log('=== MIDDLEWARE DEBUG ===');
+  console.log('Pathname:', pathname);
+  console.log('User-Agent:', userAgent.substring(0, 100) + '...');
+  
   const response = NextResponse.next({
     request: { headers: request.headers },
   });
@@ -30,8 +38,6 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const pathname = request.nextUrl.pathname;
-
   // ───────────────────────────────────────────────────────────────
   // Rotas PERMITIDAS no desktop (fluxo QR Web)
   // ───────────────────────────────────────────────────────────────
@@ -43,16 +49,21 @@ export async function updateSession(request: NextRequest) {
   // APIs do QR também são permitidas no desktop
   const isQrApi = pathname.startsWith('/api/qr/');
 
+  console.log('isDesktopAllowed:', isDesktopAllowed);
+  console.log('isQrApi:', isQrApi);
+
   if (isDesktopAllowed || isQrApi) {
+    console.log('✅ Rota permitida no desktop - continuando...');
     // Permitir acesso normal, continua para autenticação
   } else {
     // ───────────────────────────────────────────────────────────────
     // Detecção desktop para outras rotas
     // ───────────────────────────────────────────────────────────────
-    const userAgent = request.headers.get('user-agent');
     const isDesktop = isDesktopFromUA(userAgent);
+    console.log('isDesktop:', isDesktop);
 
     if (isDesktop) {
+      console.log('🚫 Desktop detectado em rota não permitida');
       // API routes: retornar 403 JSON
       if (pathname.startsWith('/api/')) {
         return NextResponse.json(
@@ -64,6 +75,7 @@ export async function updateSession(request: NextRequest) {
       // Páginas: redirecionar para tela informativa
       const url = request.nextUrl.clone();
       url.pathname = '/desktop-restricted';
+      console.log('Redirecionando para:', url.pathname);
       return NextResponse.redirect(url);
     }
   }
