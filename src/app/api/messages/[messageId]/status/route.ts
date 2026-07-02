@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { messageService, userService, conversationService } from '@/services';
+import { MessageStatus } from '@prisma/client';
 
 export async function PATCH(
   request: Request,
@@ -14,7 +15,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'messageId and status required' }, { status: 400 });
     }
 
-    if (!['sent', 'delivered', 'read'].includes(status)) {
+    if (![MessageStatus.enviada, MessageStatus.recebida, MessageStatus.lida].includes(status)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
 
@@ -41,12 +42,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Only recipient can update status' }, { status: 403 });
     }
 
-    // Se for 'read', marca como lida
-    if (status === 'read') {
+    // Se for 'lida', marca como lida
+    if (status === MessageStatus.lida) {
       await messageService.markAsRead(messageId, userProfile.id);
     } else {
       // Atualiza status diretamente
-      await messageService.updateStatus(messageId, status as 'sent' | 'delivered' | 'read');
+      await messageService.updateStatus(messageId, status as MessageStatus);
     }
 
     return NextResponse.json({ success: true, status });

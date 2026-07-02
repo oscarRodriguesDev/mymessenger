@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, MessageStatus } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -179,7 +179,7 @@ async function main() {
           senderId: msg.senderId,
           type: 'text',
           text: msg.text,
-          status: 'read',
+          status: MessageStatus.lida,
           createdAt: new Date(now.getTime() + msg.offset),
         },
       });
@@ -209,7 +209,7 @@ async function main() {
           senderId: msg.senderId,
           type: 'text',
           text: msg.text,
-          status: 'read',
+          status: MessageStatus.lida,
           createdAt: new Date(now.getTime() + msg.offset),
         },
       });

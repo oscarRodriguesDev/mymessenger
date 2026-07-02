@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { messageService, userService, conversationService } from '@/services';
+import { MessageStatus } from '@prisma/client';
 
 export async function GET(request: Request) {
   try {
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
       sender: { connect: { id: userProfile.id } },
       type: 'text',
       text,
+      status: MessageStatus.enviada,
     });
 
     return NextResponse.json(message);

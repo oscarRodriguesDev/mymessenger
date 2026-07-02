@@ -104,6 +104,13 @@ model ConversationMember {
   @@map("conversation_members")
 }
 
+enum MessageStatus {
+  nao_enviada
+  enviada
+  recebida
+  lida
+}
+
 model Message {
   id              String           @id @default(uuid())
   conversationId  String
@@ -111,7 +118,7 @@ model Message {
   type            String
   text            String?
   fileUrl         String?
-  status          String           @default("sent")
+  status          MessageStatus    @default(enviada)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 

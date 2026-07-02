@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { MessageStatus } from '@prisma/client';
 import type { Message, Prisma } from '@prisma/client';
 
 export class MessageService {
@@ -55,7 +56,7 @@ export class MessageService {
 
   async updateStatus(
     id: string,
-    status: 'sent' | 'delivered' | 'read'
+    status: MessageStatus
   ): Promise<Message> {
     return prisma.message.update({
       where: { id },
@@ -80,7 +81,7 @@ export class MessageService {
     // Atualizar status da mensagem para 'read'
     await prisma.message.update({
       where: { id: messageId },
-      data: { status: 'read' },
+      data: { status: MessageStatus.lida },
     });
   }
 
