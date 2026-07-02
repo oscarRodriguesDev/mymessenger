@@ -133,6 +133,18 @@ model Message {
   @@map("messages")
 }
 
+model MessageStatusEvent {
+  id              String   @id @default(uuid())
+  messageId       String
+  conversationId  String
+  status          String
+  createdAt       DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([createdAt(sort: Desc)])
+  @@map("message_status_events")
+}
+
 model MessageRead {
   id          String   @id @default(uuid())
   messageId   String

@@ -122,83 +122,65 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
       })
       .finally(() => { if (!cancelled) setLoading(false); });
 
-    // 2. Canal para Broadcast de status (separado do postgres_changes)
-    const statusChannel = supabase.channel(`status:${conversationId}`);
-    let statusSubscribed = false;
-
-    statusChannel.on('broadcast', { event: 'status_update' }, (payload) => {
-      const { messageId, status } = payload.payload as { messageId: string; status: MessageStatus };
-      setMessages(prev => prev.map(msg =>
-        msg.id === messageId ? { ...msg, status } : msg
-      ));
-    });
-
-    statusChannel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        statusSubscribed = true;
-      }
-    });
-
-    // 3. Canal para Realtime (INSERT de novas mensagens)
-    const msgChannel = supabase.channel(`messages:${conversationId}`);
-
-    msgChannel.on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`,
-      },
-      async (payload) => {
-        const raw = mapPayload(payload.new as Record<string, unknown>);
-        const senderMember = members.find(m => m.id === raw.senderId);
-
-        // Se eu recebi a mensagem (não sou o remetente)
-        if (raw.senderId !== currentUserId) {
-          await markAsLida(raw.id);
-          // Notifica os outros clientes via Broadcast
-          if (statusSubscribed) {
-            await statusChannel.send({
-              type: 'broadcast',
-              event: 'status_update',
-              payload: { messageId: raw.id, status: MessageStatus.lida },
-            });
-          }
+    // 2. Escuta INSERT na tabela de eventos de status (disparado pela trigger)
+    //    Quando qualquer cliente marca como lida/recebida, a trigger insere
+    //    um registro aqui e o Realtime propaga para todos.
+    const statusChannel = supabase
+      .channel(`status_events:${conversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'message_status_events',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const row = payload.new as Record<string, unknown>;
+          const messageId = row.message_id as string;
+          const newStatus = row.status as MessageStatus;
+          setMessages(prev => prev.map(msg =>
+            msg.id === messageId ? { ...msg, status: newStatus } : msg
+          ));
         }
+      )
+      .subscribe();
 
-        setMessages(prev => {
-          if (prev.some(m => m.id === raw.id)) return prev;
-          return [...prev, {
-            ...raw,
-            status: raw.senderId !== currentUserId
-              ? MessageStatus.lida
-              : raw.status,
-            sender: senderMember ?? { id: '', username: '', fullName: '', avatarUrl: null },
-            isOptimistic: false,
-          }];
-        });
-      }
-    );
+    // 3. Canal para novas mensagens (INSERT na tabela messages)
+    const msgChannel = supabase
+      .channel(`messages:${conversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        async (payload) => {
+          const raw = mapPayload(payload.new as Record<string, unknown>);
+          const senderMember = members.find(m => m.id === raw.senderId);
 
-    // Realtime UPDATE: fallback
-    msgChannel.on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`,
-      },
-      (payload) => {
-        const raw = mapPayload(payload.new as Record<string, unknown>);
-        setMessages(prev => prev.map(msg =>
-          msg.id === raw.id ? { ...msg, status: raw.status } : msg
-        ));
-      }
-    );
+          // Se eu recebi a mensagem, marco como lida (isso dispara a trigger
+          // que insere em message_status_events, avisando o remetente)
+          if (raw.senderId !== currentUserId) {
+            await markAsLida(raw.id);
+          }
 
-    msgChannel.subscribe();
+          setMessages(prev => {
+            if (prev.some(m => m.id === raw.id)) return prev;
+            return [...prev, {
+              ...raw,
+              status: raw.senderId !== currentUserId
+                ? MessageStatus.lida
+                : raw.status,
+              sender: senderMember ?? { id: '', username: '', fullName: '', avatarUrl: null },
+              isOptimistic: false,
+            }];
+          });
+        }
+      )
+      .subscribe();
 
     return () => {
       cancelled = true;
