@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from '@/providers/ThemeProvider';
+import { useAuth } from '@/providers/AuthProvider';
+import { Avatar } from '@/components/ui/avatar';
 
 const navItems = [
   {
@@ -27,6 +29,7 @@ const navItems = [
 
 export function Navigation() {
   const pathname = usePathname();
+  const { profile } = useAuth();
   let theme: 'dark' | 'light' = 'dark';
   let toggleTheme: () => void = () => {};
 
@@ -61,22 +64,57 @@ export function Navigation() {
         })}
       </div>
 
-      <button
-        onClick={toggleTheme}
-        className="ml-2 rounded-lg p-2 text-muted-foreground transition-colors duration-200 hover:bg-secondary/30 hover:text-foreground"
-        aria-label="Toggle theme"
-        title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-      >
-        {theme === 'dark' ? (
-          <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 18a6 6 0 100-12 6 6 0 000 12zM12 2v4m0 12v4M4.22 4.22l2.83 2.83m8.04 8.04l2.83 2.83M2 12h4m12 0h4M4.22 19.78l2.83-2.83m8.04-8.04l2.83-2.83" />
+      <div className="flex items-center gap-1">
+        {/* Settings */}
+        <Link
+          href="/settings"
+          className={`rounded-lg p-2 transition-colors duration-200 hover:bg-secondary/30 ${
+            pathname === '/settings'
+              ? 'text-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+          aria-label="Configurações"
+          title="Configurações"
+        >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-        ) : (
-          <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M21.64 15.95c-.18-1.34-.64-2.59-1.33-3.65a6.96 6.96 0 0 0-2.15-2.38c-.79-.64-1.23-1.72-1.23-2.92a4.51 4.51 0 0 0-8.66-1.33c-.5.62-.87 1.32-1.11 2.05-.24.74-.36 1.51-.35 2.28 0 1.2-.45 2.3-1.23 2.92a6.96 6.96 0 0 0-2.15 2.38c-.68 1.06-1.14 2.3-1.32 3.64-.1.62-.15 1.25-.15 1.88a8 8 0 0 0 16 0c0-.63-.05-1.26-.15-1.88z" />
-          </svg>
-        )}
-      </button>
+        </Link>
+
+        {/* Theme toggle */}
+        <button
+          onClick={toggleTheme}
+          className="rounded-lg p-2 text-muted-foreground transition-colors duration-200 hover:bg-secondary/30 hover:text-foreground"
+          aria-label="Toggle theme"
+          title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+        >
+          {theme === 'dark' ? (
+            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 18a6 6 0 100-12 6 6 0 000 12zM12 2v4m0 12v4M4.22 4.22l2.83 2.83m8.04 8.04l2.83 2.83M2 12h4m12 0h4M4.22 19.78l2.83-2.83m8.04-8.04l2.83-2.83" />
+            </svg>
+          ) : (
+            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M21.64 15.95c-.18-1.34-.64-2.59-1.33-3.65a6.96 6.96 0 0 0-2.15-2.38c-.79-.64-1.23-1.72-1.23-2.92a4.51 4.51 0 0 0-8.66-1.33c-.5.62-.87 1.32-1.11 2.05-.24.74-.36 1.51-.35 2.28 0 1.2-.45 2.3-1.23 2.92a6.96 6.96 0 0 0-2.15 2.38c-.68 1.06-1.14 2.3-1.32 3.64-.1.62-.15 1.25-.15 1.88a8 8 0 0 0 16 0c0-.63-.05-1.26-.15-1.88z" />
+            </svg>
+          )}
+        </button>
+
+        {/* Avatar do usuário logado */}
+        <Link
+          href="/settings"
+          className={`ml-1 rounded-full transition-opacity hover:opacity-80 ${
+            pathname === '/settings' ? 'ring-2 ring-primary ring-offset-2 ring-offset-card' : ''
+          }`}
+          title="Configurações"
+        >
+          <Avatar
+            src={profile?.avatarUrl}
+            fallback={profile?.fullName || 'U'}
+            size="sm"
+          />
+        </Link>
+      </div>
     </nav>
   );
 }
