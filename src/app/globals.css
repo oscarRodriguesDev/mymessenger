@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
 @theme {
   --color-background: #0f0f0f;
@@ -14,20 +13,8 @@
   --color-card: #1a1a1a;
   --color-border: #2d2d2d;
   --color-input: #2d2d2d;
-  
-  --font-sans: 'Inter', sans-serif;
-  --font-display: 'Poppins', sans-serif;
-}
-
-* {
-  @apply antialiased;
-}
-
-html {
-  @apply bg-background;
 }
 
 body {
-  @apply bg-background text-foreground;
-  font-family: 'Inter', sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
 }
