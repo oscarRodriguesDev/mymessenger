@@ -133,11 +133,11 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
           event: 'INSERT',
           schema: 'public',
           table: 'message_status_events',
-          filter: `conversation_id=eq.${conversationId}`,
+          filter: `conversationId=eq.${conversationId}`,
         },
         (payload) => {
           const row = payload.new as Record<string, unknown>;
-          const messageId = row.message_id as string;
+          const messageId = (row.messageId ?? row.message_id) as string;
           const newStatus = row.status as MessageStatus;
           setMessages(prev => prev.map(msg =>
             msg.id === messageId ? { ...msg, status: newStatus } : msg
@@ -155,7 +155,7 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
+          filter: `conversationId=eq.${conversationId}`,
         },
         async (payload) => {
           const raw = mapPayload(payload.new as Record<string, unknown>);
