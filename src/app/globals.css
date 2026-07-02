@@ -33,6 +33,23 @@
 html {
   background-color: var(--color-background);
   color: var(--color-foreground);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Light mode */
+html[data-theme="light"] {
+  --color-background: #f5f5f5;
+  --color-foreground: #000000;
+  --color-primary: #00a884;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #e5e7eb;
+  --color-muted: #6b7280;
+  --color-accent: #00a884;
+  --color-destructive: #ef4444;
+  --color-ring: #00a884;
+  --color-card: #ffffff;
+  --color-border: #d1d5db;
+  --color-input: #f3f4f6;
 }
 
 body {

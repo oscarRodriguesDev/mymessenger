@@ -325,7 +325,7 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
       </div>
 
       <form onSubmit={handleSend} className="border-t border-border bg-card/50 p-4 backdrop-blur-sm">
-        <div className="flex gap-3 max-w-4xl mx-auto">
+        <div className="flex gap-3 px-2 sm:px-4">
           <Input
             id="message"
             placeholder="Digite uma mensagem..."
@@ -339,7 +339,7 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
             disabled={!newMessage.trim() || sending}
             className="px-6"
           >
-            {sending ? 'Enviando...' : 'Enviar'}
+            {sending ? '...' : 'Enviar'}
           </Button>
         </div>
       </form>
