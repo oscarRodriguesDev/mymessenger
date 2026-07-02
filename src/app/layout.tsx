@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Poppins, Inter } from 'next/font/google';
 import { Providers } from '@/providers';
+import { DesktopRestriction } from '@/components/DesktopRestriction';
 import './globals.css';
 
 const poppins = Poppins({ 
@@ -32,7 +33,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${poppins.variable} bg-background`}>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <DesktopRestriction>{children}</DesktopRestriction>
+        </Providers>
       </body>
     </html>
   );
