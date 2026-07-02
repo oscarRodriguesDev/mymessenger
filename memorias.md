@@ -9,3 +9,7 @@ Criado enum MessageStatus no Prisma (nao_enviada, enviada, recebida, lida) e mig
 Corrigido bug: ChatArea.tsx importava MessageStatus de @prisma/client (Node.js), que não funciona em componente client-side. Criado src/features/chat/message-status.ts com constantes que espelham o enum, resolvendo a exibição dos ícones de status no navegador. | AUTOR: VIBECODE
 
 Corrigido Realtime: filtros usavam camelCase (conversationId) mas o Supabase Realtime usa nomes reais das colunas do banco (conversation_id). Também corrigido o acesso ao payload que estava lendo campos undefined (conversationId → conversation_id). Refatorado: marcação de leitura agora é feita diretamente no callback de INSERT (removeu useEffect de markAsRead). | AUTOR: VIBECODE
+
+Implementado trigger no banco: criada tabela message_status_events + trigger trg_message_status_change que insere evento quando status da mensagem muda. Frontend escuta INSERT na tabela via Realtime para atualizar status em tempo real. Removeu lógica de Broadcast (não confiável). | AUTOR: VIBECODE
+
+Estado atual: status funciona via trigger → INSERT Realtime → frontend atualiza em tempo real. Pendente: issue no ícone de status que mostrava a palavra "lida" (já corrigido). | AUTOR: VIBECODE
