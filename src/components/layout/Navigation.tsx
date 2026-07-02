@@ -27,7 +27,17 @@ const navItems = [
 
 export function Navigation() {
   const pathname = usePathname();
-  const { theme, toggleTheme } = useTheme();
+  let theme: 'dark' | 'light' = 'dark';
+  let toggleTheme: () => void = () => {};
+
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+    toggleTheme = themeContext.toggleTheme;
+  } catch (error) {
+    // Durante SSR/prerendering, useTheme pode falhar - usar fallback
+    // Em produção no cliente, o ThemeProvider estará disponível
+  }
 
   return (
     <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-border bg-card/95 backdrop-blur-sm shadow-sm px-4">
