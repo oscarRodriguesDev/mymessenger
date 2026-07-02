@@ -75,7 +75,7 @@ function MessageStatusIcon({ status, isOwn }: { status: MessageStatus; isOwn: bo
       <span className="inline-flex items-center gap-0.5">
         <IoCheckmarkDoneSharp color={tickColor} className="w-3 h-3" />
         <IoCheckmarkDoneSharp color={tickColor} className="w-3 h-3 -ml-1" />
-        lida
+
       </span>
     );
   }
@@ -118,25 +118,31 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
         if (cancelled) return;
         const reversed = data.reverse() as Message[];
         setMessages(reversed);
-        // Marca como lidas as não lidas do fetch inicial
         markUnreadAsLida(reversed);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
 
-    // 2. Escuta eventos em tempo real via Broadcast + Realtime
-    // Usamos Broadcast para status (mais confiável que UPDATE do Realtime)
-    const channel = supabase.channel(`messages:${conversationId}`);
+    // 2. Canal para Broadcast de status (separado do postgres_changes)
+    const statusChannel = supabase.channel(`status:${conversationId}`);
+    let statusSubscribed = false;
 
-    // Broadcast: recebe atualizações de status enviadas por outros clientes
-    channel.on('broadcast', { event: 'status_update' }, (payload) => {
+    statusChannel.on('broadcast', { event: 'status_update' }, (payload) => {
       const { messageId, status } = payload.payload as { messageId: string; status: MessageStatus };
       setMessages(prev => prev.map(msg =>
         msg.id === messageId ? { ...msg, status } : msg
       ));
     });
 
-    // Realtime INSERT: novas mensagens
-    channel.on(
+    statusChannel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        statusSubscribed = true;
+      }
+    });
+
+    // 3. Canal para Realtime (INSERT de novas mensagens)
+    const msgChannel = supabase.channel(`messages:${conversationId}`);
+
+    msgChannel.on(
       'postgres_changes',
       {
         event: 'INSERT',
@@ -150,14 +156,15 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
 
         // Se eu recebi a mensagem (não sou o remetente)
         if (raw.senderId !== currentUserId) {
-          // Marca como lida no servidor
           await markAsLida(raw.id);
-          // Avisa todos os clientes (incluindo o remetente) via Broadcast
-          channel.send({
-            type: 'broadcast',
-            event: 'status_update',
-            payload: { messageId: raw.id, status: MessageStatus.lida },
-          });
+          // Notifica os outros clientes via Broadcast
+          if (statusSubscribed) {
+            await statusChannel.send({
+              type: 'broadcast',
+              event: 'status_update',
+              payload: { messageId: raw.id, status: MessageStatus.lida },
+            });
+          }
         }
 
         setMessages(prev => {
@@ -174,8 +181,8 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
       }
     );
 
-    // Realtime UPDATE: fallback para mudanças diretas no banco
-    channel.on(
+    // Realtime UPDATE: fallback
+    msgChannel.on(
       'postgres_changes',
       {
         event: 'UPDATE',
@@ -191,11 +198,12 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
       }
     );
 
-    channel.subscribe();
+    msgChannel.subscribe();
 
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      supabase.removeChannel(statusChannel);
+      supabase.removeChannel(msgChannel);
     };
   }, [conversationId, members, currentUserId]);
 
