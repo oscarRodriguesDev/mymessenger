@@ -5,8 +5,24 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
-import { HiCheck, HiOutlineClock } from 'react-icons/hi';
+import { GrFormClock, GrCheckmark } from "react-icons/gr";
+import { IoCheckmarkDoneSharp } from "react-icons/io5";
 import { MessageStatus } from '@/features/chat/message-status';
+
+// Mapeia nomes de colunas do banco (snake_case) para camelCase
+function mapPayload(raw: Record<string, unknown>) {
+  return {
+    id: raw.id as string,
+    conversationId: (raw.conversationId ?? raw.conversation_id) as string,
+    senderId: (raw.senderId ?? raw.sender_id) as string,
+    type: raw.type as string,
+    text: raw.text as string | null,
+    fileUrl: (raw.fileUrl ?? raw.file_url) as string | null,
+    status: (raw.status as MessageStatus) ?? MessageStatus.enviada,
+    createdAt: (raw.createdAt ?? raw.created_at) as string,
+    updatedAt: (raw.updatedAt ?? raw.updated_at) as string,
+  };
+}
 
 interface Sender {
   id: string;
@@ -45,23 +61,20 @@ interface Member {
 function MessageStatusIcon({ status, isOwn }: { status: MessageStatus; isOwn: boolean }) {
   if (!isOwn) return null;
 
-  const tickClass = status === MessageStatus.lida ? 'text-blue-500' : 'text-gray-400';
-
   if (status === MessageStatus.nao_enviada) {
-    return (
-      <HiOutlineClock className="w-3 h-3 animate-spin text-gray-400" />
-    );
+    return <GrFormClock color="#fdfdfd" />;
   }
 
   if (status === MessageStatus.enviada) {
-    return <HiCheck className={`w-3 h-3 ${tickClass}`} />;
+    return <GrCheckmark color="#fdfdfd" className="w-3 h-3 text-gray-400" />;
   }
 
   if (status === MessageStatus.recebida || status === MessageStatus.lida) {
+    const tickColor = status === MessageStatus.lida ? '#3b82f6' : '#9ca3af';
     return (
       <span className="inline-flex items-center gap-0.5">
-        <HiCheck className={`w-3 h-3 ${tickClass}`} />
-        <HiCheck className={`w-3 h-3 ${tickClass} -ml-1`} />
+        <IoCheckmarkDoneSharp color={tickColor} className="w-3 h-3" />
+        <IoCheckmarkDoneSharp color={tickColor} className="w-3 h-3 -ml-1" />
       </span>
     );
   }
@@ -77,15 +90,39 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const optimisticIdRef = useRef(0);
 
+  // Marca uma mensagem como lida no servidor
+  const markAsLida = (messageId: string) => {
+    return fetch(`/api/messages/${messageId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: MessageStatus.lida }),
+    });
+  };
+
+  // Marca todas as mensagens não lidas (de terceiros) como lidas
+  const markUnreadAsLida = (list: Message[]) => {
+    list
+      .filter(m => m.senderId !== currentUserId && m.status !== MessageStatus.lida)
+      .forEach(m => markAsLida(m.id));
+  };
+
   useEffect(() => {
     let cancelled = false;
     const supabase = createClient();
 
+    // 1. Carrega mensagens iniciais
     fetch(`/api/messages?conversationId=${conversationId}`)
       .then(res => res.ok ? res.json() : [])
-      .then(data => { if (!cancelled) setMessages(data.reverse()); })
+      .then(data => {
+        if (cancelled) return;
+        const reversed = data.reverse() as Message[];
+        setMessages(reversed);
+        // Marca como lidas as não lidas do fetch inicial
+        markUnreadAsLida(reversed);
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
 
+    // 2. Escuta eventos do Realtime (usa snake_case nos filtros — nomes reais do banco)
     const channel = supabase
       .channel(`messages:${conversationId}`)
       .on(
@@ -94,35 +131,24 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `conversationId=eq.${conversationId}`,
+          filter: `conversation_id=eq.${conversationId}`,
         },
         async (payload) => {
-          const raw = payload.new as Record<string, unknown>;
-          const msgId = raw.id as string;
-          const senderId = raw.senderId as string;
-          const senderMember = members.find(m => m.id === senderId);
+          const raw = mapPayload(payload.new as Record<string, unknown>);
+          const senderMember = members.find(m => m.id === raw.senderId);
 
-          // Se eu não sou o remetente, marco como delivered
-          if (senderId !== currentUserId) {
-            // Marca como delivered no banco
-            await fetch(`/api/messages/${msgId}/status`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status: MessageStatus.recebida }),
-            });
+          // Se eu recebi a mensagem (não sou o remetente), marco como lida direto
+          if (raw.senderId !== currentUserId) {
+            await markAsLida(raw.id);
           }
 
           setMessages(prev => {
-            if (prev.some(m => m.id === msgId)) return prev;
+            if (prev.some(m => m.id === raw.id)) return prev;
             return [...prev, {
-              id: msgId,
-              conversationId: raw.conversationId as string,
-              senderId,
-              type: raw.type as string,
-              text: raw.text as string | null,
-              fileUrl: raw.fileUrl as string | null,
-              status: senderId !== currentUserId ? MessageStatus.recebida : ((raw.status as MessageStatus) || MessageStatus.enviada),
-              createdAt: raw.createdAt as string,
+              ...raw,
+              status: raw.senderId !== currentUserId
+                ? MessageStatus.lida       // já marquei como lida no servidor
+                : raw.status,
               sender: senderMember ?? { id: '', username: '', fullName: '', avatarUrl: null },
               isOptimistic: false,
             }];
@@ -135,15 +161,13 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
           event: 'UPDATE',
           schema: 'public',
           table: 'messages',
-          filter: `conversationId=eq.${conversationId}`,
+          filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          const raw = payload.new as Record<string, unknown>;
-          const msgId = raw.id as string;
-          const newStatus = raw.status as MessageStatus;
+          const raw = mapPayload(payload.new as Record<string, unknown>);
           setMessages(prev => prev.map(msg =>
-            msg.id === msgId
-              ? { ...msg, status: newStatus }
+            msg.id === raw.id
+              ? { ...msg, status: raw.status }
               : msg
           ));
         }
@@ -156,30 +180,10 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
     };
   }, [conversationId, members, currentUserId]);
 
+  // Scroll automático
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // Marca todas as mensagens não lidas como 'read' quando o componente monta
-  useEffect(() => {
-    const markAsRead = async () => {
-      const unreadMessages = messages.filter(
-        m =>         m.senderId !== currentUserId && m.status !== MessageStatus.lida
-      );
-
-      for (const message of unreadMessages) {
-        await fetch(`/api/messages/${message.id}/status`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: MessageStatus.lida }),
-        });
-      }
-    };
-
-    // Aguarda um pouco para garantir que o componente está totalmente carregado
-    const timeout = setTimeout(markAsRead, 500);
-    return () => clearTimeout(timeout);
-  }, [conversationId]); // Executa quando a conversa muda
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,8 +277,8 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
                 )}
                 <div
                   className={`rounded-lg px-4 py-2 ${isOwn
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-foreground'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-foreground'
                     }`}
                 >
                   {!isOwn && (
