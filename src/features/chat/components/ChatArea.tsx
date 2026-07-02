@@ -70,7 +70,7 @@ function MessageStatusIcon({ status, isOwn }: { status: MessageStatus; isOwn: bo
   }
 
   if (status === MessageStatus.recebida || status === MessageStatus.lida) {
-    const tickColor = status === MessageStatus.lida ? '#3b82f6' : '#9ca3af';
+    const tickColor = status === MessageStatus.lida ? '#7eacf6' : '#9ca3af';
     return (
       <span className="inline-flex items-center gap-0.5">
         <IoCheckmarkDoneSharp color={tickColor} className="w-3 h-3" />
@@ -294,7 +294,7 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
                 )}
                 <div
                   className={`rounded-2xl px-5 py-3 ${isOwn
-                    ? 'bg-primary text-primary-foreground shadow-lg'
+                    ? 'bg-[#3d6b4f] text-primary-foreground shadow-lg'
                     : 'bg-secondary text-foreground border border-border'
                     }`}
                 >
@@ -334,8 +334,8 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
             disabled={sending}
             className="flex-1"
           />
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             disabled={!newMessage.trim() || sending}
             className="px-6"
           >
