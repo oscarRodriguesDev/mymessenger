@@ -33,6 +33,20 @@ Corrigido leitor de QR code na página /scan-qr: (1) scanner agora inicia APENAS
 Implementada aplicação web restrita para desktop (/web): (1) criado modelo WebSession no Prisma com expiração de 7 dias; (2) criado web-session.service.ts para gerenciar sessões; (3) criada página /web com chat restrito (apenas envio/recebimento de mensagens) e layout desktop otimizado; (4) QR exchange agora cria WebSession e redireciona magic link para /web em vez de /chat; (5) middleware atualizado: desktop não logado → /web-access, desktop logado → /web, mobile bloqueado de /web; (6) DesktopRestriction atualizado para permitir /web; (7) criada API GET/DELETE /api/web/session para verificar e encerrar sessão web. | AUTOR: VIBECODE
 
 ## BUG FIX (03/07/2026)
+
+### Problema 1: Middleware bloqueava APIs no desktop
 - **Problema:** Após escanear QR e exchange retornar 200, o frontend redirecionava para `/web#access_token=xxx` mas voltava para `/web-access` em loop.
 - **Causa raiz:** O middleware (`middleware.ts`) bloqueava TODAS as APIs no desktop exceto `/api/qr/*` e `/api/web/*`. Quando o `syncProfile()` chamava `POST /api/auth/sync`, o middleware retornava 403 (desktop + rota não permitida). Com `profile = null`, a página `/web` redirecionava de volta para `/web-access`.
 - **Correção:** No middleware, desktop autenticado (que já passou pelo fluxo QR) agora tem permissão para acessar qualquer API. Adicionado `if (user) { return response; }` antes do bloqueio 403, permitindo que `syncProfile`, `/api/conversations`, `/api/messages`, etc. funcionem na versão web. | AUTOR: VIBECODE
+
+### Problema 2: createBrowserClient força flowType "pkce" (CAUSA RAIZ REAL)
+- **Causa raiz REAL:** `createBrowserClient` do `@supabase/ssr@0.12.0` força `flowType: "pkce"` (hardcoded na linha 40 do createBrowserClient.js, sobrescrevendo qualquer opção do usuário). Com PKCE, o GoTrueClient procura APENAS pelo parâmetro `code` na URL (código de autorização PKCE), IGNORANDO completamente `#access_token=` no hash.
+  - Nosso fluxo de exchange do QR retorna `redirectTo: '/web#access_token=xxx&refresh_token=yyy...'` (formato implicit grant)
+  - O GoTrueClient com PKCE não reconhece `access_token` no hash → nunca processa o login
+  - Hash nunca é limpo → página `/web` entra no timeout de 20s → redireciona para `/web-access`
+- **Correção:** Substituído `createBrowserClient` por uma implementação customizada que:
+  1. Usa `createClient` do `@supabase/supabase-js` diretamente (NÃO o `createBrowserClient` do `@supabase/ssr`)
+  2. Define `flowType: 'implicit'` para que o GoTrueClient detecte `#access_token=` no hash
+  3. Implementa storage de cookies compatível com o mesmo formato do `@supabase/ssr` (base64- + base64url + chunking) para que o `createServerClient` consiga ler as sessões
+  4. Mantém singleton pattern igual ao original
+- **Arquivo modificado:** `src/lib/supabase/client.ts` (reescrito completamente) | AUTOR: VIBECODE
