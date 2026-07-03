@@ -155,6 +155,10 @@ export async function POST(request: Request) {
 
     const cookieStore = await cookies();
 
+    // Determinar se a conexão é segura (produção com HTTPS)
+    const isSecure =
+      request.url.startsWith('https://') || process.env.NODE_ENV === 'production';
+
     const supabase = createServerClient(supabaseUrl, anonKey, {
       cookies: {
         get(name: string) {
@@ -164,7 +168,7 @@ export async function POST(request: Request) {
           response.cookies.set(name, value, {
             ...options,
             httpOnly: true,
-            secure: true,
+            secure: isSecure,
             sameSite: 'lax',
             path: '/',
           });
