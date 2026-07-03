@@ -40,7 +40,7 @@ export async function updateSession(request: NextRequest) {
   if (pathname.startsWith('/api/')) {
     // APIs sempre permitidas no desktop (fluxo QR/web)
     const isAllowedApi =
-      pathname.startsWith('/api/qr/') || pathname.startsWith('/api/web/');
+      pathname.startsWith('/api/qr/') || pathname.startsWith('/api/web/') || pathname.startsWith('/api/presence/');
 
     if (isDesktop && !isAllowedApi) {
       // Desktop autenticado (já passou pelo fluxo QR) → permite

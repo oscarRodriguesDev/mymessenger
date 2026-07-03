@@ -29,6 +29,7 @@ Corrigido leitor de QR code na página /scan-qr: (1) scanner agora inicia APENAS
 - **Branch obsoleta (não usar mais):** `v0/melhoria-visual-da-aplicacao-d7f71782`
 - Todo código deve ser mantido atualizado na branch `vibecode` | AUTOR: USUARIO
 - **Commits:** Só commitar alterações quando o usuário pedir **expressamente**. Não commitar automaticamente ao finalizar tarefas. | AUTOR: USUARIO
+- **Arquitetura mobile:** Já existe um aplicativo nativo que instancia uma WebView carregando a URL da aplicação Next.js. Este é o formato atual e não há planos confirmados de migrar para React Native/Flutter nativo puro — isso só aconteceria se surgir necessidade futura. | AUTOR: USUARIO
 
 Implementada aplicação web restrita para desktop (/web): (1) criado modelo WebSession no Prisma com expiração de 7 dias; (2) criado web-session.service.ts para gerenciar sessões; (3) criada página /web com chat restrito (apenas envio/recebimento de mensagens) e layout desktop otimizado; (4) QR exchange agora cria WebSession e redireciona magic link para /web em vez de /chat; (5) middleware atualizado: desktop não logado → /web-access, desktop logado → /web, mobile bloqueado de /web; (6) DesktopRestriction atualizado para permitir /web; (7) criada API GET/DELETE /api/web/session para verificar e encerrar sessão web. | AUTOR: VIBECODE
 
@@ -60,3 +61,31 @@ Implementada aplicação web restrita para desktop (/web): (1) criado modelo Web
   3. Implementa storage de cookies compatível com o mesmo formato do `@supabase/ssr` (base64- + base64url + chunking) para que o `createServerClient` consiga ler as sessões
   4. Mantém singleton pattern igual ao original
 - **Arquivo modificado:** `src/lib/supabase/client.ts` (reescrito completamente) | AUTOR: VIBECODE
+
+## Sistema de Presença (Online/Offline) - (03/07/2026)
+
+Implementado sistema de presença em tempo real (estilo WhatsApp Web) para mostrar quais contatos estão online/offline.
+
+### Componentes criados:
+1. **`POST /api/presence/heartbeat`** — Endpoint REST que atualiza `lastSeenAt` do usuário no banco. Chamado a cada 30s pelo hook `usePresence`.
+2. **`GET /api/presence/status?userIds=...`** — Endpoint REST que retorna o status de um ou mais usuários (online/idle/offline) baseado no `lastSeenAt`.
+3. **`src/hooks/usePresence.ts`** — Hook principal que combina 3 mecanismos:
+   - **Supabase Realtime Presence** (instantâneo): detecta join/leave em tempo real via websocket
+   - **Heartbeat REST** (a cada 30s): persiste `lastSeenAt` no banco
+   - **Polling de fallback** (a cada 30s): consulta `GET /api/presence/status` para watchedUserIds
+   - Limpeza automática: `beforeunload` + `visibilitychange` (untrack + heartbeat final)
+4. **`src/components/OnlineIndicator.tsx`** — Componente visual: bolinha verde (online), amarela (idle), cinza (offline).
+5. **`Avatar`** (`src/components/ui/avatar.tsx`) — Atualizado com props `showStatus` e `status` para exibir indicador no canto do avatar.
+
+### Páginas atualizadas:
+6. **`Sidebar`** (`src/features/chat/components/Sidebar.tsx`) — Mostra bolinha de status nos avatares da lista de conversas.
+7. **`/chat`** (`src/app/(main)/chat/page.tsx`) — Header da conversa agora mostra "Online"/"Offline" abaixo do nome + bolinha no avatar. Lista de conversas também com status nos avatares.
+8. **`/web`** (`src/app/(web)/web/page.tsx`) — Mesmas melhorias da página /chat: header com status + lista com status nos avatares. Footer do sidebar mostra próprio usuário como online.
+
+### Thresholds:
+- Online: `lastSeenAt < 90s`
+- Idle: `lastSeenAt < 5min`
+- Offline: `lastSeenAt > 5min`
+
+### Modelo de dados:
+- Campo `lastSeenAt` (DateTime?) adicionado ao modelo `User` no Prisma schema | AUTOR: VIBECODE

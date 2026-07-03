@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { ChatArea } from '@/features/chat/components/ChatArea';
+import { usePresence } from '@/hooks/usePresence';
 
 interface Member {
   id: string;
@@ -37,6 +38,12 @@ export default function ChatPage() {
   const [search, setSearch] = useState('');
   const [loadingConversations, setLoadingConversations] = useState(true);
 
+  // Presença: monitorar participantes das conversas
+  const watchedIds = conversations.flatMap((conv) =>
+    conv.members.filter((m) => m.id !== profile?.id).map((m) => m.id)
+  );
+  const { isOnline } = usePresence({ watchUserIds: watchedIds });
+
   useEffect(() => {
     if (!loading && !profile) {
       router.push('/login');
@@ -67,6 +74,22 @@ export default function ChatPage() {
     return otherMember?.avatarUrl;
   };
 
+  // Para conversas 1:1, pegar o status do outro participante
+  const getOtherMemberStatus = (conv: Conversation) => {
+    if (conv.type === 'group') return undefined;
+    const other = conv.members.find(m => m.id !== profile?.id);
+    if (!other) return undefined;
+    return isOnline(other.id) ? 'online' as const : 'offline' as const;
+  };
+
+  // Status do outro usuário na conversa selecionada (para o header)
+  const selectedConversation = selectedConversationId
+    ? conversations.find(c => c.id === selectedConversationId)
+    : null;
+  const otherMemberStatus = selectedConversation && selectedConversation.type !== 'group'
+    ? getOtherMemberStatus(selectedConversation)
+    : undefined;
+
   const filteredConversations = conversations.filter(conv => {
     const name = getConversationName(conv).toLowerCase();
     return name.includes(search.toLowerCase());
@@ -84,7 +107,6 @@ export default function ChatPage() {
 
   // If a conversation is selected, show chat view
   if (selectedConversationId) {
-    const selectedConversation = conversations.find(c => c.id === selectedConversationId);
     const conversationName = selectedConversation ? getConversationName(selectedConversation) : 'Chat';
 
     return (
@@ -103,8 +125,17 @@ export default function ChatPage() {
             fallback={conversationName}
             size="sm"
             className="h-10 w-10"
+            showStatus={selectedConversation?.type !== 'group'}
+            status={otherMemberStatus}
           />
-          <h1 className="text-base font-semibold truncate sm:text-lg">{conversationName}</h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-base font-semibold truncate sm:text-lg">{conversationName}</h1>
+            {otherMemberStatus && (
+              <p className="text-xs text-muted-foreground">
+                {otherMemberStatus === 'online' ? 'Online' : 'Offline'}
+              </p>
+            )}
+          </div>
         </header>
         <ChatArea
           conversationId={selectedConversationId}
@@ -173,6 +204,8 @@ export default function ChatPage() {
                 fallback={getConversationName(conv)}
                 size="sm"
                 className="h-12 w-12"
+                showStatus={conv.type !== 'group'}
+                status={getOtherMemberStatus(conv)}
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">

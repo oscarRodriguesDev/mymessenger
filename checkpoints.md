@@ -233,3 +233,42 @@ if (isDesktop && !isAllowedApi) {
 ## 02/07/2026 - Corrigido trigger e nomes de colunas no Realtime
 
 [Histórico anterior mantido]
+
+---
+
+## 03/07/2026 - Sistema de Presença (Online/Offline)
+
+### O que foi feito
+
+**Sistema de presença em tempo real** para mostrar quais contatos estão online, similar ao WhatsApp Web:
+
+### Arquitetura (3 mecanismos combinados)
+
+| Mecanismo | Latência | Propósito |
+|---|---|---|
+| **Realtime Presence (Supabase)** | Instantâneo | Detectar join/leave em tempo real via WebSocket |
+| **Heartbeat REST (30s)** | ~30s | Persistir `lastSeenAt` no banco de dados |
+| **Polling de fallback (30s)** | ~30s | Consultar status de usuários específicos quando Realtime não está disponível |
+
+### Componentes criados
+
+- `src/app/api/presence/heartbeat/route.ts` — POST: atualiza `lastSeenAt` do usuário autenticado
+- `src/app/api/presence/status/route.ts` — GET: retorna status (online/idle/offline) para lista de userIds
+- `src/hooks/usePresence.ts` — Hook React que gerencia os 3 mecanismos + limpeza automática
+- `src/components/OnlineIndicator.tsx` — Bolinha verde/amarela/cinza com tooltip
+
+### Componentes modificados
+
+- `src/components/ui/avatar.tsx` — Adicionadas props `showStatus` e `status` para exibir indicador no canto
+- `src/features/chat/components/Sidebar.tsx` — Status nos avatares da lista de conversas
+- `src/app/(main)/chat/page.tsx` — Header: "Online"/"Offline" abaixo do nome + bolinha no avatar; Lista: status nos avatares
+- `src/app/(web)/web/page.tsx` — Mesmas melhorias que /chat; footer mostra próprio usuário como online
+- `prisma/schema.prisma` — Campo `lastSeenAt` adicionado ao modelo `User`
+
+### Thresholds de status
+- **Online:** `lastSeenAt < 90s`
+- **Idle:** `lastSeenAt < 5min`
+- **Offline:** `lastSeenAt > 5min`
+
+### Estado do build
+- ✅ Build validado com sucesso (29 pages + middleware + 17 API routes)

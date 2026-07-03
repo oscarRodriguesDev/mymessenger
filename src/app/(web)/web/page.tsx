@@ -6,6 +6,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
 import { Avatar } from '@/components/ui/avatar';
 import { ChatArea } from '@/features/chat/components/ChatArea';
+import { usePresence } from '@/hooks/usePresence';
 
 interface Member {
   id: string;
@@ -137,6 +138,19 @@ export default function WebPage() {
     return otherMember?.avatarUrl;
   };
 
+  // ── Presença ──
+  const watchedIds = conversations.flatMap((conv) =>
+    conv.members.filter((m) => m.id !== profile?.id).map((m) => m.id)
+  );
+  const { isOnline } = usePresence({ watchUserIds: watchedIds });
+
+  const getOtherMemberStatus = (conv: Conversation) => {
+    if (conv.type === 'group') return undefined;
+    const other = conv.members.find((m) => m.id !== profile?.id);
+    if (!other) return undefined;
+    return isOnline(other.id) ? ('online' as const) : ('offline' as const);
+  };
+
   const filteredConversations = conversations.filter((conv) => {
     const name = getConversationName(conv).toLowerCase();
     return name.includes(search.toLowerCase());
@@ -144,6 +158,9 @@ export default function WebPage() {
 
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
   const conversationName = selectedConversation ? getConversationName(selectedConversation) : '';
+  const otherMemberStatus = selectedConversation
+    ? getOtherMemberStatus(selectedConversation)
+    : undefined;
 
   // ── Loading inicial ──
   if (authLoading || checkingSession) {
@@ -182,8 +199,17 @@ export default function WebPage() {
             fallback={conversationName}
             size="sm"
             className="h-10 w-10 shrink-0"
+            showStatus={selectedConversation.type !== 'group'}
+            status={otherMemberStatus}
           />
-          <h1 className="text-base font-semibold truncate flex-1">{conversationName}</h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-base font-semibold truncate">{conversationName}</h1>
+            {otherMemberStatus && (
+              <p className="text-xs text-muted-foreground">
+                {otherMemberStatus === 'online' ? 'Online' : 'Offline'}
+              </p>
+            )}
+          </div>
         </header>
         <ChatArea
           conversationId={selectedConversationId}
@@ -264,6 +290,8 @@ export default function WebPage() {
                     fallback={getConversationName(conv)}
                     size="sm"
                     className="h-12 w-12 shrink-0"
+                    showStatus={conv.type !== 'group'}
+                    status={getOtherMemberStatus(conv)}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
@@ -298,6 +326,8 @@ export default function WebPage() {
               fallback={profile?.fullName || 'U'}
               size="sm"
               className="h-6 w-6"
+              showStatus
+              status="online"
             />
             <span className="truncate">{profile?.fullName}</span>
           </div>

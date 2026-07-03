@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
+import { usePresence } from '@/hooks/usePresence';
 
 interface Member {
   id: string;
@@ -38,6 +39,13 @@ export function Sidebar({ currentUserId, onSelectConversation, selectedConversat
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Coletar IDs de todos os participantes para monitorar presença
+  const watchedIds = conversations.flatMap((conv) =>
+    conv.members.filter((m) => m.id !== currentUserId).map((m) => m.id)
+  );
+
+  const { isOnline } = usePresence({ watchUserIds: watchedIds });
+
   useEffect(() => {
     let cancelled = false;
     fetch('/api/conversations')
@@ -58,6 +66,14 @@ export function Sidebar({ currentUserId, onSelectConversation, selectedConversat
     if (conv.avatarUrl) return conv.avatarUrl;
     const otherMember = conv.members.find(m => m.id !== currentUserId);
     return otherMember?.avatarUrl;
+  };
+
+  // Para conversas 1:1, pegar o status do outro participante
+  const getOtherMemberStatus = (conv: Conversation) => {
+    if (conv.type === 'group') return undefined;
+    const other = conv.members.find(m => m.id !== currentUserId);
+    if (!other) return undefined;
+    return isOnline(other.id) ? 'online' as const : 'offline' as const;
   };
 
   const filteredConversations = conversations.filter(conv => {
@@ -98,6 +114,8 @@ export function Sidebar({ currentUserId, onSelectConversation, selectedConversat
               <Avatar
                 src={getConversationAvatar(conv)}
                 fallback={getConversationName(conv)}
+                showStatus={conv.type !== 'group'}
+                status={getOtherMemberStatus(conv)}
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
