@@ -236,6 +236,121 @@ if (isDesktop && !isAllowedApi) {
 
 ---
 
+## 03/07/2026 - Schema Batch + Indicador de Digitação + Deduplicação
+
+### Schema Batch (migração única para P0+P1)
+Adicionados TODOS os campos/modelos futuros em uma única migração:
+
+| Modelo | Campos novos | Itens |
+|---|---|---|
+| User | `typingIndicatorEnabled` (Boolean) | #11 |
+| Message | `clientMessageId` (String?, unique), `expiresAt`, `mimeType`, `fileSize`, `fileName` | #13, #14, #20 |
+| Conversation | `isEphemeral`, `defaultTTL` (Int?) | #15 |
+| **Novo: Reaction** | messageId, userId, emoji | #19 |
+
+### Item 11: Indicador de digitação
+
+**Arquitetura:** Supabase Realtime Broadcast (ephemeral, sem escrever no banco).
+
+**Funcionamento:**
+1. ChatArea chama `setTyping(true)` no onChange do input
+2. `useTypingIndicator` hook envia broadcast `typing_start` com `{ userId, fullName }` no canal `typing:<convId>`
+3. Outros usuários na conversa recebem e veem "Fulano está digitando..."
+4. Debounce de 1s: se parar de digitar, envia `typing_stop`
+5. Auto-expira 3s: se não receber novo `typing_start`, remove da lista
+6. Toggle em Settings > Privacidade controla ENVIO (não recebimento)
+7. Animação: 3 dots pulsando + texto italic
+
+**Arquivos:**
+- `useTypingIndicator.ts` (hook)
+- `TypingIndicator.tsx` (componente)
+- ChatArea, Settings, Profile API, Auth/Sync API, AuthProvider, /chat, /web
+
+### Item 13: Deduplicação
+
+**Funcionamento:**
+1. ChatArea gera `clientMessageId` único: `${userId}-${Date.now()}-${counter}`
+2. Envia no body do POST /api/messages
+3. Servidor verifica `findByClientMessageId(senderId, clientMessageId)`:
+   - Se existente → retorna 200 com a mensagem existente (idempotente)
+   - Se novo → cria normalmente
+4. Mensagens que falham (`nao_enviada`) mostram botão "Reenviar"
+5. Retry reenvia com mesmo `clientMessageId` (garantia de não duplicar)
+
+**Arquivos:**
+- message.service.ts (+findByClientMessageId)
+- POST /api/messages (verificação + criação com clientMessageId)
+- ChatArea.tsx (geração, envio, retry)
+
+### Estado P0 atual
+- ✅ 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13
+- 🔶 7 (Bloqueio — modelo existe, falta API + UI)
+
+### Estado do build
+- ✅ Build validado com sucesso (32 pages + middleware + 21 API routes)
+
+### O que foi feito
+
+**Item 9 — Grupos Básicos:** API completa + frontend para criar e gerenciar grupos de conversa.
+
+**Item 10 — Confirmação de Leitura Opcional:** Toggle por usuário para controlar envio de read receipts.
+
+### APIs criadas
+
+| Rota | Método | Descrição |
+|---|---|---|
+| `/api/groups` | POST | Cria grupo com nome + lista de membros |
+| `/api/groups/[id]` | GET | Detalhes do grupo |
+| `/api/groups/[id]` | PUT | Atualiza nome/avatar (admin only) |
+| `/api/groups/[id]` | DELETE | Deleta grupo (admin only) |
+| `/api/groups/[id]/members` | POST | Adiciona membro (admin only) |
+| `/api/groups/[id]/members/[userId]` | DELETE | Remove membro (admin ou auto) |
+
+### Frontend criado
+
+- `src/features/groups/CreateGroupModal.tsx` — Modal de criação de grupo
+- Botão "Criar Grupo" na página `/contacts`
+- Toggle "Confirmação de leitura" na seção Privacidade do `/settings`
+
+### Schema alterado
+
+- Adicionado `readReceiptEnabled` (Boolean, default `true`) ao modelo `User`
+- Migração: `20260703000001_add_read_receipt_toggle`
+
+### Lógica de read receipt
+
+- `PATCH /api/messages/[messageId]/status` verifica a preferência do usuário:
+  - `true` → marca como `lida` (blue ticks para o remetente)
+  - `false` → marca como `recebida` (grey ticks para o remetente)
+- O leitor localmente sempre vê como lida (UX não muda)
+- Settings → Privacidade: toggle para ativar/desativar
+
+### Arquivos criados/modificados
+
+```
+Criados:
+  - src/app/api/groups/route.ts
+  - src/app/api/groups/[id]/route.ts
+  - src/app/api/groups/[id]/members/route.ts
+  - src/app/api/groups/[id]/members/[userId]/route.ts
+  - src/features/groups/CreateGroupModal.tsx
+  - prisma/migrations/20260703000001_add_read_receipt_toggle/migration.sql
+
+Modificados:
+  - prisma/schema.prisma (readReceiptEnabled field)
+  - src/services/user.service.ts (findByIds)
+  - src/app/api/messages/[messageId]/status/route.ts (read receipt check)
+  - src/app/api/profile/route.ts (readReceiptEnabled in/out)
+  - src/app/api/auth/sync/route.ts (readReceiptEnabled in response)
+  - src/app/(main)/settings/page.tsx (toggle + save)
+  - src/app/(main)/contacts/page.tsx (create group button + modal)
+```
+
+### Estado do build
+- ✅ Build validado com sucesso (32 pages + middleware + 21 API routes)
+
+---
+
 ## 03/07/2026 - Sistema de Presença (Online/Offline)
 
 ### O que foi feito

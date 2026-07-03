@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { conversationId, text } = await request.json();
+    const { conversationId, text, clientMessageId } = await request.json();
 
     if (!conversationId || !text) {
       return NextResponse.json({ error: 'conversationId and text required' }, { status: 400 });
@@ -63,12 +63,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Not a member' }, { status: 403 });
     }
 
+    // ── Item 13: Deduplicação por clientMessageId ──
+    if (clientMessageId) {
+      const existing = await messageService.findByClientMessageId(userProfile.id, clientMessageId);
+      if (existing) {
+        // Mensagem já foi enviada — retorna a existente (idempotente)
+        return NextResponse.json(existing);
+      }
+    }
+
     const message = await messageService.create({
       conversation: { connect: { id: conversationId } },
       sender: { connect: { id: userProfile.id } },
       type: 'text',
       text,
       status: MessageStatus.enviada,
+      ...(clientMessageId ? { clientMessageId } : {}),
     });
 
     return NextResponse.json(message);

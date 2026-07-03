@@ -62,6 +62,12 @@ export class UserService {
     });
   }
 
+  async findByIds(ids: string[]): Promise<User[]> {
+    return prisma.user.findMany({
+      where: { id: { in: ids } },
+    });
+  }
+
   async updateLastSeen(id: string): Promise<void> {
     await prisma.user.update({
       where: { id },

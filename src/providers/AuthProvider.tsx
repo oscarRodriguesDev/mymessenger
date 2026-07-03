@@ -20,6 +20,7 @@ interface Profile {
   fullName: string;
   email: string;
   avatarUrl: string | null;
+  typingIndicatorEnabled?: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);

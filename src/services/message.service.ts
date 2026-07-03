@@ -30,6 +30,27 @@ export class MessageService {
     });
   }
 
+  async findByClientMessageId(
+    senderId: string,
+    clientMessageId: string
+  ): Promise<Message | null> {
+    return prisma.message.findUnique({
+      where: {
+        senderId_clientMessageId: { senderId, clientMessageId },
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            username: true,
+            fullName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+  }
+
   async create(data: Prisma.MessageCreateInput): Promise<Message> {
     const message = await prisma.message.create({
       data,

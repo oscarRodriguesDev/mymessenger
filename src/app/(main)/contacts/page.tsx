@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
 import { UserSearch } from '@/features/contacts/components/UserSearch';
 import { ContactList } from '@/features/contacts/components/ContactList';
+import { CreateGroupModal } from '@/features/groups/CreateGroupModal';
 
 type Tab = 'search' | 'friends' | 'followers' | 'following' | 'pending';
 
@@ -20,6 +21,7 @@ export default function ContactsPage() {
   const { profile, loading, signOut } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('search');
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
 
   const startConversation = useCallback(async (userId: string) => {
     try {
@@ -61,6 +63,16 @@ export default function ContactsPage() {
             </svg>
           </button>
           <h1 className="text-lg font-semibold truncate">Contatos</h1>
+          <button
+            onClick={() => setShowCreateGroup(true)}
+            className="ml-auto mr-2 shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+            title="Criar grupo"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <circle cx="18" cy="6" r="3" />
+            </svg>
+          </button>
         </div>
         <div className="flex items-center gap-2 shrink-0 sm:gap-4">
           <span className="text-xs text-muted-foreground hidden sm:inline">
@@ -118,6 +130,11 @@ export default function ContactsPage() {
           <ContactList type="pending" />
         )}
       </div>
+
+      <CreateGroupModal
+        isOpen={showCreateGroup}
+        onClose={() => setShowCreateGroup(false)}
+      />
     </div>
   );
 }

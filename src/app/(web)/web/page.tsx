@@ -215,6 +215,7 @@ export default function WebPage() {
           conversationId={selectedConversationId}
           currentUserId={profile.id}
           members={selectedConversation.members}
+          typingIndicatorEnabled={profile?.typingIndicatorEnabled ?? true}
         />
       </div>
     );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/client';
 import { GrFormClock, GrCheckmark } from "react-icons/gr";
 import { IoCheckmarkDoneSharp } from "react-icons/io5";
 import { MessageStatus } from '@/features/chat/message-status';
+import { useTypingIndicator } from '@/hooks/useTypingIndicator';
+import { TypingIndicator } from '@/components/TypingIndicator';
 
 // Mapeia nomes de colunas do banco (snake_case) para camelCase
 function mapPayload(raw: Record<string, unknown>) {
@@ -42,12 +44,14 @@ interface Message {
   createdAt: string;
   sender: Sender;
   isOptimistic?: boolean;
+  clientMessageId?: string;
 }
 
 interface ChatAreaProps {
   conversationId: string;
   currentUserId: string;
   members: Member[];
+  typingIndicatorEnabled?: boolean;
 }
 
 interface Member {
@@ -83,13 +87,21 @@ function MessageStatusIcon({ status, isOwn }: { status: MessageStatus; isOwn: bo
   return null;
 }
 
-export function ChatArea({ conversationId, currentUserId, members }: ChatAreaProps) {
+export function ChatArea({ conversationId, currentUserId, members, typingIndicatorEnabled = true }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const optimisticIdRef = useRef(0);
+  const clientMsgIdRef = useRef(0);
+
+  // Item 11: Indicador de digitação
+  const { typingUserNames, setTyping } = useTypingIndicator({
+    conversationId,
+    currentUserId,
+    enabled: typingIndicatorEnabled,
+  });
 
   // Marca uma mensagem como lida no servidor
   const markAsLida = (messageId: string) => {
@@ -194,14 +206,52 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Função reutilizável para enviar mensagem (nova ou retry)
+  const sendMessage = useCallback(async (text: string, clientMessageId: string, optimisticId: string) => {
+    setSending(true);
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId, text, clientMessageId }),
+      });
+
+      if (res.ok) {
+        const message = await res.json();
+        setMessages(prev => prev.map(msg =>
+          msg.id === optimisticId
+            ? { ...message, isOptimistic: false, status: MessageStatus.enviada }
+            : msg
+        ));
+        return true;
+      } else {
+        setMessages(prev => prev.map(msg =>
+          msg.id === optimisticId
+            ? { ...msg, status: MessageStatus.nao_enviada }
+            : msg
+        ));
+        return false;
+      }
+    } catch {
+      setMessages(prev => prev.map(msg =>
+        msg.id === optimisticId
+          ? { ...msg, status: MessageStatus.nao_enviada }
+          : msg
+      ));
+      return false;
+    } finally {
+      setSending(false);
+    }
+  }, [conversationId]);
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || sending) return;
 
-    setSending(true);
-
-    // Cria mensagem otimista imediatamente
+    // Gera clientMessageId para deduplicação (Item 13)
+    const clientMessageId = `${currentUserId}-${Date.now()}-${clientMsgIdRef.current++}`;
     const optimisticId = `optimistic-${Date.now()}-${optimisticIdRef.current++}`;
+
     const optimisticMessage: Message = {
       id: optimisticId,
       conversationId,
@@ -209,6 +259,7 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
       type: 'text',
       text: newMessage.trim(),
       fileUrl: null,
+      clientMessageId,
       status: MessageStatus.nao_enviada,
       createdAt: new Date().toISOString(),
       sender: members.find(m => m.id === currentUserId) ?? { id: currentUserId, username: '', fullName: 'You', avatarUrl: null },
@@ -217,43 +268,21 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
 
     // Adiciona imediatamente na tela e limpa o input
     setMessages(prev => [...prev, optimisticMessage]);
+    const textToSend = newMessage.trim();
     setNewMessage('');
 
-    try {
-      const res = await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId, text: newMessage.trim() }),
-      });
-
-      if (res.ok) {
-        const message = await res.json();
-        // Substitui a mensagem otimista pela real do banco
-        setMessages(prev => prev.map(msg =>
-          msg.id === optimisticId
-            ? { ...message, isOptimistic: false, status: MessageStatus.enviada }
-            : msg
-        ));
-      } else {
-        // Falha: marca como erro (mantém pending ou muda para error)
-        setMessages(prev => prev.map(msg =>
-          msg.id === optimisticId
-            ? { ...msg, status: MessageStatus.nao_enviada }
-            : msg
-        ));
-      }
-    } catch (err) {
-      console.error('Failed to send message:', err);
-      // Mantém como nao_enviada para retry
-      setMessages(prev => prev.map(msg =>
-        msg.id === optimisticId
-          ? { ...msg, status: MessageStatus.nao_enviada }
-          : msg
-      ));
-    } finally {
-      setSending(false);
-    }
+    await sendMessage(textToSend, clientMessageId, optimisticId);
   };
+
+  // Retry de mensagem que falhou
+  const handleRetry = useCallback(async (msg: Message) => {
+    if (sending) return;
+    setMessages(prev => prev.map(m =>
+      m.id === msg.id ? { ...m, status: MessageStatus.nao_enviada } : m
+    ));
+    const clientMessageId = msg.clientMessageId || `${currentUserId}-${Date.now()}-retry`;
+    await sendMessage(msg.text || '', clientMessageId, msg.id);
+  }, [sending, sendMessage, currentUserId]);
 
   if (loading) {
     return (
@@ -305,6 +334,16 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
                   )}
                   <p className="text-xs break-words sm:text-sm">{message.text}</p>
                   <div className="flex items-center justify-end gap-1 mt-1 sm:gap-2 sm:mt-2">
+                    {isOwn && message.status === MessageStatus.nao_enviada && (
+                      <button
+                        onClick={() => handleRetry(message)}
+                        disabled={sending}
+                        className="text-xs text-red-400 hover:text-red-300 transition-colors mr-1"
+                        title="Tentar novamente"
+                      >
+                        Reenviar
+                      </button>
+                    )}
                     <span
                       className={`text-xs ${isOwn ? 'text-primary-foreground/60' : 'text-muted-foreground'
                         }`}
@@ -324,13 +363,18 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
         <div ref={messagesEndRef} />
       </div>
 
+      <TypingIndicator typingUserNames={typingUserNames} />
       <form onSubmit={handleSend} className="border-t border-border bg-card/50 p-3 backdrop-blur-sm sm:p-4">
         <div className="flex gap-2 px-1 sm:gap-3 sm:px-0">
           <Input
             id="message"
             placeholder="Digite uma mensagem..."
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              setTyping(e.target.value.length > 0);
+            }}
+            onBlur={() => setTyping(false)}
             disabled={sending}
             className="flex-1 text-sm sm:text-base"
           />

@@ -24,22 +24,22 @@
 | 1   | Conta por username único                        | ✅     | `User.username` é unique. Registro com username + signUp.                                                                     |
 | 2   | Email opcional (recuperação)                    | ✅     | Email usado como login/recuperação via Supabase Auth.                                                                         |
 | 3   | Perfil simples (foto, nome)                     | ✅     | `fullName`, `avatarUrl`, `bio`. Página de settings completa com edição.                                                       |
-| 4   | Status de presença (online, ausente, invisível) | 🔶     | `lastSeenAt` existe no schema, mas **nunca é atualizado em tempo real**. Sem heartbeat, sem tracking online/offline.          |
+| 4   | Status de presença (online, ausente, invisível) | ✅     | Heartbeat REST + Realtime Presence + polling fallback. Indicador visual no avatar. Thresholds: <90s online, <5min idle.        |
 | 5   | Sistema seguir/adicionar                        | ✅     | FollowService completo: seguir, aceitar, rejeitar, amigos mútuos, seguidores, seguindo.                                       |
 | 6   | Solicitação por username                        | ✅     | `GET /api/users/search?q=` com debounce 300ms. Exibe status do follow.                                                        |
 | 7   | Bloqueio e restrição                            | 🔶     | Modelo `BlockedUser` existe. Backend de follow já exclui bloqueados. **Sem endpoint nem frontend para bloquear/desbloquear.** |
 | 8   | Conversas 1:1                                   | ✅     | Criação automática ao enviar primeira mensagem.                                                                               |
-| 9   | Grupos básicos                                  | 🔶     | `createGroupConversation()` existe no service. **Sem API endpoint nem frontend para criar grupos.**                           |
-| 10  | Confirmação de leitura opcional                 | 🔶     | `MessageRead` + ticks funcionam. **Sem toggle por usuário (sempre ativo).**                                                   |
-| 11  | Indicador de digitação opcional                 | ❌     | Não implementado.                                                                                                             |
-| 12  | Infraestrutura em tempo real (WebSocket)        | ✅     | Supabase Realtime (PostgreSQL LISTEN/NOTIFY).                                                                                 |
-| 13  | Garantia de entrega + deduplicação              | ❌     | Sem idempotência por `messageId` no servidor. Sem fila de retry para offline.                                                 |
+| 9   | Grupos básicos                                  | ✅     | API completa + frontend de criação de grupos. Admin pode adicionar/remover membros.                                           |
+| 10  | Confirmação de leitura opcional                 | ✅     | Toggle em Settings > Privacidade. Backend respeita `readReceiptEnabled` ao marcar como lida.                                  |
+| 11  | Indicador de digitação opcional                 | ✅     | Realtime Broadcast + toggle em Settings > Privacidade. Animação "fulano está digitando..." com dots pulsando.                  |
+| 12  | Infraestrutura em tempo real (WebSocket)        | ✅     | Supabase Realtime (PostgreSQL LISTEN/NOTIFY + Broadcast).                                                                     |
+| 13  | Garantia de entrega + deduplicação              | ✅     | `clientMessageId` único por sender. Servidor retorna 200 com mensagem existente se detectar duplicata. Retry no frontend.     |
 
 ### Itens P0 — Resumo
 
-- **✅ Completos:** 1, 2, 3, 5, 6, 8, 12
-- **🔶 Pendentes:** 4 (presença real-time), 7 (bloqueio UI), 9 (criação de grupos), 10 (toggle leitura)
-- **�0s Faltando:** 11 (digitação), 13 (dedup)
+- **✅ Completos:** 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13
+- **🔶 Pendentes:** 7 (bloqueio UI)
+- **❌ Faltando:** nenhum
 
 ---
 
@@ -47,20 +47,20 @@
 
 | #   | Requisito                                 | Status | Detalhes                                                                      |
 | --- | ----------------------------------------- | ------ | ----------------------------------------------------------------------------- |
-| 14  | Mensagens efêmeras (TTL configurável)     | ❌     | Sem campo `expiresAt` no Message. Sem worker de expiração.                    |
-| 15  | Modo conversa efêmera por chat            | ❌     | Sem toggle por conversa.                                                      |
-| 16  | Mídia com expiração automática            | ❌     | Sem upload de mídia em mensagens.                                             |
-| 17  | Círculos (grupos leves, temporários)      | ❌     | Só grupos tradicionais (permanentes, admin). Sem participação temporária.     |
-| 18  | Áudios curtos como padrão                 | ❌     | Sem gravação, upload ou player de áudio.                                      |
-| 19  | Reações rápidas (emoji)                   | ❌     | Sem modelo `Reaction` nem UI.                                                 |
-| 20  | Resposta com mídia (imagem, áudio, vídeo) | ❌     | Mensagens só aceitam `text`. `fileUrl` existe no schema mas nunca é populado. |
-| 21  | Sinais "vibe" (interações não textuais)   | ❌     | Não implementado.                                                             |
+| 14  | Mensagens efêmeras (TTL configurável)     | 🔶   | Schema: `Message.expiresAt`. **Sem worker de expiração nem UI.**                    |
+| 15  | Modo conversa efêmera por chat            | 🔶   | Schema: `Conversation.isEphemeral` + `defaultTTL`. **Sem worker nem UI.**           |
+| 16  | Mídia com expiração automática            | ❌     | Sem upload de mídia em mensagens.                                                   |
+| 17  | Círculos (grupos leves, temporários)      | ❌     | Só grupos tradicionais (permanentes, admin). Sem participação temporária.           |
+| 18  | Áudios curtos como padrão                 | ❌     | Sem gravação, upload ou player de áudio.                                            |
+| 19  | Reações rápidas (emoji)                   | 🔶   | Schema: modelo `Reaction` criado. **Sem API nem UI.**                               |
+| 20  | Resposta com mídia (imagem, áudio, vídeo) | 🔶   | Schema: `Message.mimeType`, `fileSize`, `fileName`. **Sem upload nem UI.**          |
+| 21  | Sinais "vibe" (interações não textuais)   | ❌     | Não implementado.                                                                   |
 
 ### Itens P1 — Resumo
 
 - **✅ Completos:** Nenhum
-- **🔶 Pendentes:** Nenhum
-- **❌ Faltando:** 14, 15, 16, 17, 18, 19, 20, 21 (tudo)
+- **🔶 Pendentes:** 14, 15, 19, 20 (schema pronto, falta implementação)
+- **❌ Faltando:** 16, 17, 18, 21
 
 ---
 

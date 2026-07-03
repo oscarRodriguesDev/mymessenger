@@ -141,6 +141,7 @@ export default function ChatPage() {
           conversationId={selectedConversationId}
           currentUserId={profile.id}
           members={selectedConversation?.members ?? []}
+          typingIndicatorEnabled={profile.typingIndicatorEnabled}
         />
       </div>
     );

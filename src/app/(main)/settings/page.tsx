@@ -24,6 +24,8 @@ interface ProfileData {
   phone: string | null;
   discoverableByPhone: boolean;
   discoverableByUsername: boolean;
+  readReceiptEnabled: boolean;
+  typingIndicatorEnabled: boolean;
 }
 
 interface FieldProps {
@@ -85,6 +87,8 @@ export default function SettingsPage() {
   const [phone, setPhone] = useState('');
   const [discoverableByPhone, setDiscoverableByPhone] = useState(true);
   const [discoverableByUsername, setDiscoverableByUsername] = useState(true);
+  const [readReceiptEnabled, setReadReceiptEnabled] = useState(true);
+  const [typingIndicatorEnabled, setTypingIndicatorEnabled] = useState(true);
 
   // Senha
   const [currentPassword, setCurrentPassword] = useState('');
@@ -121,6 +125,8 @@ export default function SettingsPage() {
         setPhone(data.phone ?? '');
         setDiscoverableByPhone(data.discoverableByPhone);
         setDiscoverableByUsername(data.discoverableByUsername);
+        setReadReceiptEnabled(data.readReceiptEnabled);
+        setTypingIndicatorEnabled(data.typingIndicatorEnabled);
         setAvatarPreview(data.avatarUrl);
       }
     } catch (err) {
@@ -139,7 +145,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName, username, bio, phone, discoverableByPhone, discoverableByUsername }),
+        body: JSON.stringify({ fullName, username, bio, phone, discoverableByPhone, discoverableByUsername, readReceiptEnabled, typingIndicatorEnabled }),
       });
 
       const data = await res.json();
@@ -566,6 +572,18 @@ export default function SettingsPage() {
                   description="Permitir que outros usuários te encontrem pelo seu nome de usuário"
                   checked={discoverableByUsername}
                   onChange={setDiscoverableByUsername}
+                />
+                <ToggleSetting
+                  label="Confirmação de leitura"
+                  description="Quando desativado, outras pessoas não verão quando você leu as mensagens delas"
+                  checked={readReceiptEnabled}
+                  onChange={setReadReceiptEnabled}
+                />
+                <ToggleSetting
+                  label="Indicador de digitação"
+                  description="Quando desativado, outras pessoas não verão quando você está digitando"
+                  checked={typingIndicatorEnabled}
+                  onChange={setTypingIndicatorEnabled}
                 />
                 <div className="flex justify-end pt-2">
                   <Button onClick={handleSaveProfile} disabled={loadingProfile}>

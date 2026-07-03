@@ -42,9 +42,15 @@ export async function PATCH(
       return NextResponse.json({ error: 'Only recipient can update status' }, { status: 403 });
     }
 
-    // Se for 'lida', marca como lida
+    // Se for 'lida', verifica a preferência de confirmação de leitura do usuário
     if (status === MessageStatus.lida) {
-      await messageService.markAsRead(messageId, userProfile.id);
+      if (userProfile.readReceiptEnabled) {
+        await messageService.markAsRead(messageId, userProfile.id);
+      } else {
+        // Usuário desativou confirmação de leitura: marca como 'recebida'
+        // para o remetente ver apenas ticks cinzas
+        await messageService.updateStatus(messageId, MessageStatus.recebida);
+      }
     } else {
       // Atualiza status diretamente
       await messageService.updateStatus(messageId, status as MessageStatus);

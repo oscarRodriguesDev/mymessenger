@@ -32,6 +32,12 @@ export async function POST() {
       fullName: userProfile.fullName,
       email: userProfile.email,
       avatarUrl: userProfile.avatarUrl,
+      bio: userProfile.bio,
+      phone: userProfile.phone,
+      discoverableByPhone: userProfile.discoverableByPhone,
+      discoverableByUsername: userProfile.discoverableByUsername,
+      readReceiptEnabled: userProfile.readReceiptEnabled,
+      typingIndicatorEnabled: userProfile.typingIndicatorEnabled,
     });
   } catch (error) {
     console.error('Auth sync error:', error);

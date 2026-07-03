@@ -89,3 +89,98 @@ Implementado sistema de presença em tempo real (estilo WhatsApp Web) para mostr
 
 ### Modelo de dados:
 - Campo `lastSeenAt` (DateTime?) adicionado ao modelo `User` no Prisma schema | AUTOR: VIBECODE
+
+## Grupos Básicos + Confirmação de Leitura Opcional (03/07/2026)
+
+### Item 9: Grupos Básicos
+Criada API completa para criação e gerenciamento de grupos:
+
+**APIs criadas:**
+- `POST /api/groups` — Cria grupo com nome + lista de membros. Usuário logado vira admin.
+- `GET /api/groups/[id]` — Retorna detalhes do grupo (requer ser membro)
+- `PUT /api/groups/[id]` — Atualiza nome/avatar do grupo (admin only)
+- `DELETE /api/groups/[id]` — Deleta grupo (admin only)
+- `POST /api/groups/[id]/members` — Adiciona membro (admin only)
+- `DELETE /api/groups/[id]/members/[userId]` — Remove membro (admin ou auto-remoção)
+
+**Frontend criado:**
+- `src/features/groups/CreateGroupModal.tsx` — Modal de criação de grupo com:
+  - Input para nome do grupo
+  - Lista de contatos com seleção (checkboxes)
+  - Contador de participantes selecionados
+  - Botão criar com loading state
+- Botão "Criar Grupo" (ícone +) na página `/contacts`
+
+**Service atualizado:**
+- `user.service.ts` — Adicionado método `findByIds()` para validar membros
+
+### Item 10: Confirmação de Leitura Opcional
+
+**Schema:**
+- Adicionado campo `readReceiptEnabled` (Boolean, default `true`) ao modelo `User`
+- Migração: `20260703000001_add_read_receipt_toggle`
+
+**Lógica de leitura:**
+- `PATCH /api/messages/[messageId]/status` agora verifica `userProfile.readReceiptEnabled`:
+  - Se **true** (padrão): marca como `lida` (blue ticks para o remetente)
+  - Se **false**: marca como `recebida` (grey ticks para o remetente)
+- O leitor sempre vê a mensagem como lida na sua interface (local state)
+
+**Settings:**
+- Toggle "Confirmação de leitura" adicionado na seção Privacidade
+- Descrição: "Quando desativado, outras pessoas não verão quando você leu as mensagens delas"
+- `PUT /api/profile` agora aceita e retorna `readReceiptEnabled`
+- `POST /api/auth/sync` agora retorna `readReceiptEnabled` | AUTOR: VIBECODE
+
+## Schema Batch + Indicador de Digitação + Deduplicação (03/07/2026)
+
+### Schema Batch (preparação para P1)
+Adicionados todos os campos/modelos necessários para itens futuros de uma só vez:
+
+**User:**
+- `typingIndicatorEnabled` (Boolean, @default(true)) — Item #11
+
+**Message:**
+- `clientMessageId` (String?, unique com senderId) — Item #13
+- `expiresAt` (DateTime?) — Item #14
+- `mimeType`, `fileSize`, `fileName` (String?/Int?/String?) — Item #20
+
+**Conversation:**
+- `isEphemeral` (Boolean, @default(false)) — Item #15
+- `defaultTTL` (Int?) — Item #15
+
+**Novo modelo: Reaction** (messageId, userId, emoji, createdAt) — Item #19
+
+Migração: `20260703000002_batch_schema_updates` (aplicada via db push + resolve)
+
+### Item 11: Indicador de digitação opcional
+**Arquivos criados:**
+- `src/hooks/useTypingIndicator.ts` — Hook via Realtime Broadcast:
+  - Canal `typing:<conversationId>` com broadcast `self: false`
+  - Eventos: `typing_start` (userId + fullName) e `typing_stop` (userId)
+  - Debounce de 1s para "stopped_typing", auto-expira em 3s sem evento
+  - Respeita `enabled` (toggle do usuário)
+- `src/components/TypingIndicator.tsx` — Animação com 3 dots pulsando + "Fulano está digitando..."
+
+**Arquivos modificados:**
+- `ChatArea.tsx` — Importa e usa o hook, chama `setTyping(true/false)` no onChange do input, `setTyping(false)` no onBlur, aceita prop `typingIndicatorEnabled`
+- `Settings` — Toggle "Indicador de digitação" na seção Privacidade
+- `Profile` API — Aceita/retorna `typingIndicatorEnabled`
+- `Auth/Sync` API — Retorna `typingIndicatorEnabled`
+- `AuthProvider` — Profile interface atualizada com `typingIndicatorEnabled`
+- `/chat` page + `/web` page — Passam `typingIndicatorEnabled` para ChatArea
+
+### Item 13: Garantia de entrega + Deduplicação
+**Arquivos modificados:**
+- `message.service.ts` — Adicionado `findByClientMessageId(senderId, clientMessageId)` para lookup de duplicatas
+- `POST /api/messages` — Se `clientMessageId` informado, verifica duplicata e retorna mensagem existente (200 OK, idempotente)
+- `ChatArea.tsx` — Gera `clientMessageId` único (`userId-timestamp-counter`), envia no body da requisição
+- Botão "Reenviar" em mensagens com status `nao_enviada` (texto vermelho, clicável)
+- Retry usa `handleRetry` que reenvia com o mesmo clientMessageId (idempotente)
+
+### Schema Batch (preparação para P1)
+Adicionados campos/modelos para itens futuros sem precisar migrar de novo:
+- **Message:** `expiresAt`, `mimeType`, `fileSize`, `fileName` — Itens #14 e #20
+- **Conversation:** `isEphemeral`, `defaultTTL` — Item #15
+- **Reaction:** Novo modelo (messageId, userId, emoji) — Item #19
+- Migração: `20260703000002_batch_schema_updates` | AUTOR: VIBECODE

@@ -12,7 +12,7 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { fullName, username, bio, phone, discoverableByPhone, discoverableByUsername } = body;
+    const { fullName, username, bio, phone, discoverableByPhone, discoverableByUsername, readReceiptEnabled, typingIndicatorEnabled } = body;
 
     // Buscar profile atual
     const currentProfile = await userService.findByAuthId(authUser.id);
@@ -49,6 +49,8 @@ export async function PUT(request: Request) {
       ...(phone !== undefined && { phone }),
       ...(discoverableByPhone !== undefined && { discoverableByPhone }),
       ...(discoverableByUsername !== undefined && { discoverableByUsername }),
+      ...(readReceiptEnabled !== undefined && { readReceiptEnabled }),
+      ...(typingIndicatorEnabled !== undefined && { typingIndicatorEnabled }),
     });
 
     return NextResponse.json({
@@ -62,6 +64,8 @@ export async function PUT(request: Request) {
       phone: updatedProfile.phone,
       discoverableByPhone: updatedProfile.discoverableByPhone,
       discoverableByUsername: updatedProfile.discoverableByUsername,
+      readReceiptEnabled: updatedProfile.readReceiptEnabled,
+      typingIndicatorEnabled: updatedProfile.typingIndicatorEnabled,
     });
   } catch (error) {
     console.error('Profile update error:', error);

@@ -19,6 +19,8 @@ model User {
   avatarUrl             String?
   bio                   String?
   lastSeenAt            DateTime?
+  readReceiptEnabled    Boolean              @default(true)
+  typingIndicatorEnabled Boolean             @default(true)       // #11 opcional
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
@@ -32,6 +34,7 @@ model User {
   devices               Device[]
   ownedConversations    Conversation[]       @relation("ConversationOwner")
   webSessions           WebSession[]
+  reactions             Reaction[]
 
   @@index([username])
   @@index([email])
@@ -77,6 +80,8 @@ model Conversation {
   name        String?
   avatarUrl   String?
   ownerId     String?
+  isEphemeral Boolean              @default(false)              // #15 chat efêmero
+  defaultTTL  Int?                                              // #15 TTL padrão (segundos)
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
@@ -120,17 +125,25 @@ model Message {
   text            String?
   fileUrl         String?
   status          MessageStatus    @default(enviada)
+  clientMessageId String?                                       // #13 dedup (único por sender)
+  expiresAt       DateTime?                                     // #14 TTL mensagem
+  mimeType        String?                                       // #20 tipo da mídia
+  fileSize        Int?                                          // #20 tamanho do arquivo (bytes)
+  fileName        String?                                       // #20 nome original do arquivo
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
   conversation    Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender          User             @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   reads           MessageRead[]
+  reactions       Reaction[]
 
+  @@unique([senderId, clientMessageId])                         // #13
   @@index([conversationId])
   @@index([senderId])
   @@index([createdAt(sort: Desc)])
   @@index([status])
+  @@index([clientMessageId])
   @@map("messages")
 }
 
@@ -159,6 +172,20 @@ model MessageRead {
   @@index([messageId])
   @@index([userId])
   @@map("message_reads")
+}
+
+model Reaction {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
 }
 
 model Device {
