@@ -54,6 +54,10 @@ export async function updateSession(request: NextRequest) {
 
   // ───────────────────────────────────────────────────────────────
   // Página /web: exclusiva para desktop
+  // ⚠ NÃO verifica autenticação aqui porque o magic link do Supabase
+  // redireciona para /web#access_token=... (hash fica só no cliente).
+  // O servidor não vê o hash e o user ainda não está autenticado.
+  // O componente cliente (/web page) cuida da verificação de auth.
   // ───────────────────────────────────────────────────────────────
   if (pathname === '/web' || pathname.startsWith('/web/')) {
     if (!isDesktop) {
@@ -63,14 +67,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Desktop com acesso a /web: precisa estar logado
-    if (!user) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/web-access';
-      return NextResponse.redirect(url);
-    }
-
-    // Logado → permite acesso
+    // Desktop → sempre permite (auth é verificada no cliente)
     return response;
   }
 

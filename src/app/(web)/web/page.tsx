@@ -44,7 +44,24 @@ export default function WebPage() {
   useEffect(() => {
     if (authLoading) return;
 
+    // ── Magic link: o Supabase redireciona para /web#access_token=...
+    // O hash fica no cliente e pode levar alguns ms para ser processado.
+    // Se detectarmos que há um hash de acesso, esperamos o auth completar.
+    const hasAuthHash =
+      typeof window !== 'undefined' &&
+      window.location.hash.includes('access_token=');
+
     if (!user || !profile) {
+      if (hasAuthHash) {
+        // Auth ainda está sendo processado via magic link — aguardar
+        // O AuthProvider vai processar o hash e atualizar user/profile
+        // Timeout de segurança: se não processar em 5s, redireciona
+        const timeout = setTimeout(() => {
+          router.replace('/web-access');
+        }, 5000);
+        return () => clearTimeout(timeout);
+      }
+
       router.replace('/web-access');
       return;
     }
