@@ -265,12 +265,12 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
 
   return (
     <div className="flex flex-1 flex-col bg-gradient-to-b from-background to-secondary/10">
-      <div className="flex-1 overflow-auto p-6 space-y-4">
+      <div className="flex-1 overflow-auto space-y-3 p-4 sm:space-y-4 sm:p-6">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <div className="text-center">
               <div className="mb-3 text-4xl">💬</div>
-              <p className="text-muted-foreground">Nenhuma mensagem ainda. Comece a conversa!</p>
+              <p className="text-sm text-muted-foreground sm:text-base">Nenhuma mensagem ainda. Comece a conversa!</p>
             </div>
           </div>
         )}
@@ -282,7 +282,7 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
               className={`flex ${isOwn ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-200`}
             >
               <div
-                className={`flex items-end gap-3 max-w-[70%] ${isOwn ? 'flex-row-reverse' : ''
+                className={`flex items-end gap-2 max-w-[85%] sm:gap-3 sm:max-w-[70%] ${isOwn ? 'flex-row-reverse' : ''
                   }`}
               >
                 {!isOwn && (
@@ -293,18 +293,18 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
                   />
                 )}
                 <div
-                  className={`rounded-2xl px-5 py-3 ${isOwn
+                  className={`rounded-2xl px-3 py-2 sm:px-5 sm:py-3 ${isOwn
                     ? 'bg-[#3d6b4f] text-primary-foreground shadow-lg'
                     : 'bg-secondary text-foreground border border-border'
                     }`}
                 >
                   {!isOwn && (
-                    <p className="text-xs font-semibold mb-1 text-muted-foreground">
+                    <p className="text-xs font-semibold mb-0.5 text-muted-foreground">
                       {message.sender.fullName}
                     </p>
                   )}
-                  <p className="text-sm break-words">{message.text}</p>
-                  <div className="flex items-center justify-end gap-2 mt-2">
+                  <p className="text-xs break-words sm:text-sm">{message.text}</p>
+                  <div className="flex items-center justify-end gap-1 mt-1 sm:gap-2 sm:mt-2">
                     <span
                       className={`text-xs ${isOwn ? 'text-primary-foreground/60' : 'text-muted-foreground'
                         }`}
@@ -324,20 +324,20 @@ export function ChatArea({ conversationId, currentUserId, members }: ChatAreaPro
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSend} className="border-t border-border bg-card/50 p-4 backdrop-blur-sm">
-        <div className="flex gap-3 px-2 sm:px-4">
+      <form onSubmit={handleSend} className="border-t border-border bg-card/50 p-3 backdrop-blur-sm sm:p-4">
+        <div className="flex gap-2 px-1 sm:gap-3 sm:px-0">
           <Input
             id="message"
             placeholder="Digite uma mensagem..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             disabled={sending}
-            className="flex-1"
+            className="flex-1 text-sm sm:text-base"
           />
           <Button
             type="submit"
             disabled={!newMessage.trim() || sending}
-            className="px-6"
+            className="px-4 sm:px-6 text-sm sm:text-base"
           >
             {sending ? '...' : 'Enviar'}
           </Button>
