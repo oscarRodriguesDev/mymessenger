@@ -104,6 +104,56 @@ Modificados:
 
 ---
 
+## 03/07/2026 - Aplicação Web Restrita (/web) + Sessão de 7 dias
+
+### O que foi feito
+
+**Nova página `/web`** — Aplicação web restrita para desktop (estilo WhatsApp Web):
+- Apenas envio e recebimento de mensagens (sem contatos, configurações ou perfil)
+- Layout desktop otimizado com dois painéis (lista de conversas + chat)
+- Botão "Sair" que encerra a sessão web e desloga do Supabase
+- Exclusiva para desktop (mobile redirecionado para /chat)
+
+**Sessão web de 7 dias:**
+- Criado modelo `WebSession` no Prisma com `expiresAt` (7 dias)
+- Criado `web-session.service.ts` para CRUD de sessões web
+- Sessão é criada no momento do QR exchange (quando usuário escaneia o QR)
+- Sessões expiradas são deletadas automaticamente ao verificar
+- Força o usuário a re-escanear o QR após 7 dias
+
+**Redirecionamento do magic link:**
+- QR exchange agora redireciona para `/web` em vez de `/chat`
+- WebSession é criada junto com o magic link
+
+**Middleware atualizado:**
+- Desktop + não logado → `/web-access`
+- Desktop + logado → permite `/web` e demais rotas protegidas
+- `/web` bloqueado para mobile (redireciona para `/chat` ou `/login`)
+- APIs `/api/web/*` liberadas no desktop (além de `/api/qr/*`)
+- Rota raiz (`/`) redireciona: desktop → `/web` ou `/web-access`, mobile → `/chat` ou `/login`
+
+**DesktopRestriction atualizado:**
+- Rota `/web` adicionada às rotas permitidas no desktop
+- `/web` não é bloqueada independente do dispositivo
+
+### Arquivos criados
+- `prisma/schema.prisma` (modelo WebSession + relação em User)
+- `src/services/web-session.service.ts`
+- `src/app/(web)/layout.tsx`
+- `src/app/(web)/web/page.tsx`
+- `src/app/api/web/session/route.ts`
+
+### Arquivos modificados
+- `src/app/api/qr/exchange/route.ts` (redirectTo → /web + cria WebSession)
+- `src/lib/supabase/middleware.ts` (regras de desktop + /web)
+- `src/components/DesktopRestriction.tsx` (permitir /web)
+- `src/services/index.ts` (exportar webSessionService)
+
+### Estado do build
+- ✅ Build validado com sucesso
+
+---
+
 ## 03/07/2026 - Corrigido leitor de QR code (/scan-qr)
 
 ### Problemas identificados

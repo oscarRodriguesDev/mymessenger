@@ -31,61 +31,102 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+  const userAgent = request.headers.get('user-agent') || '';
+  const isDesktop = isDesktopFromUA(userAgent);
 
   // ───────────────────────────────────────────────────────────────
-  // APIs: Bloquear TODAS as APIs no desktop (exceto QR)
+  // APIs: Bloquear TODAS as APIs no desktop (exceto QR e web session)
   // ───────────────────────────────────────────────────────────────
   if (pathname.startsWith('/api/')) {
-    const isQrApi = pathname.startsWith('/api/qr/');
-    
-    if (!isQrApi) {
-      // Verificar se é desktop
-      const userAgent = request.headers.get('user-agent');
-      const isDesktop = isDesktopFromUA(userAgent);
-      
-      if (isDesktop) {
-        return NextResponse.json(
-          { error: 'Acesso não permitido em desktop. Use /web-access para conectar via QR.' },
-          { status: 403 }
-        );
-      }
+    const isAllowedApi =
+      pathname.startsWith('/api/qr/') || pathname.startsWith('/api/web/');
+
+    if (isDesktop && !isAllowedApi) {
+      return NextResponse.json(
+        { error: 'Acesso não permitido em desktop. Use /web-access para conectar via QR.' },
+        { status: 403 }
+      );
     }
-    
-    // APIs do QR ou mobile → continua normal
+
+    // APIs permitidas (QR, web) ou mobile → continua normal
     return response;
   }
 
   // ───────────────────────────────────────────────────────────────
-  // Páginas: NUNCA bloquear no middleware
-  // O bloqueio visual é feito no cliente (DesktopRestriction component)
+  // Página /web: exclusiva para desktop
   // ───────────────────────────────────────────────────────────────
-  // Removeu-se o bloqueio de páginas no middleware
-  // Agora todas as páginas são acessíveis, e o componente DesktopRestriction
-  // decide se mostra a tela de bloqueio ou a tela de QR
+  if (pathname === '/web' || pathname.startsWith('/web/')) {
+    if (!isDesktop) {
+      // Mobile não pode acessar /web → redireciona para o chat
+      const url = request.nextUrl.clone();
+      url.pathname = user ? '/chat' : '/login';
+      return NextResponse.redirect(url);
+    }
+
+    // Desktop com acesso a /web: precisa estar logado
+    if (!user) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/web-access';
+      return NextResponse.redirect(url);
+    }
+
+    // Logado → permite acesso
+    return response;
+  }
 
   // ───────────────────────────────────────────────────────────────
-  // Autenticação — rotas protegidas
+  // Rotas protegidas (chat, contacts, settings, etc.)
   // ───────────────────────────────────────────────────────────────
   const protectedRoutes = ['/chat', '/contacts', '/groups', '/profile', '/settings'];
   const isProtectedRoute = protectedRoutes.some((route) =>
-    request.nextUrl.pathname.startsWith(route)
+    pathname.startsWith(route)
   );
 
-  // Rotas de auth (redirecionar se já logado)
+  // Rotas de auth (login, register, forgot-password)
   const authRoutes = ['/login', '/register', '/forgot-password'];
   const isAuthRoute = authRoutes.some((route) =>
-    request.nextUrl.pathname.startsWith(route)
+    pathname.startsWith(route)
   );
 
+  // ── Desktop em rota protegida sem login → /web-access ──
+  if (isProtectedRoute && !user && isDesktop) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/web-access';
+    return NextResponse.redirect(url);
+  }
+
+  // ── Desktop em rota protegida COM login → permite (já tem sessão web) ──
+  if (isProtectedRoute && user && isDesktop) {
+    // Usuário desktop logado: deixa acessar as rotas normalmente
+    // O componente DesktopRestriction no cliente cuida do bloqueio visual
+    return response;
+  }
+
+  // ── Mobile em rota protegida sem login → /login ──
   if (isProtectedRoute && !user) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
+  // ── Rotas de auth com usuário logado → redireciona ──
   if (isAuthRoute && user) {
     const url = request.nextUrl.clone();
-    url.pathname = '/chat';
+    // Desktop logado → /web, mobile logado → /chat
+    url.pathname = isDesktop ? '/web' : '/chat';
+    return NextResponse.redirect(url);
+  }
+
+  // ── Rota raiz (/) → redireciona conforme dispositivo e login ──
+  if (pathname === '/') {
+    const url = request.nextUrl.clone();
+
+    if (isDesktop) {
+      url.pathname = user ? '/web' : '/web-access';
+    } else {
+      url.pathname = user ? '/chat' : '/login';
+    }
+
     return NextResponse.redirect(url);
   }
 

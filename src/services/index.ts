@@ -5,3 +5,4 @@ export { messageService } from './message.service';
 export { authService } from './auth.service';
 export { followService } from './follow.service';
 export { qrAuthService } from './qr-auth.service';
+export { webSessionService } from './web-session.service';

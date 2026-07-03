@@ -10,14 +10,20 @@ export function DesktopRestriction({ children }: { children: React.ReactNode }) 
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // Rotas permitidas no desktop (fluxo QR Web)
-    const allowedRoutes = ['/web-access', '/scan', '/desktop-restricted'];
+    // Rotas permitidas no desktop (fluxo Web)
+    const allowedRoutes = [
+      '/web-access', '/scan', '/desktop-restricted',
+      '/web',          // página da aplicação web restrita
+    ];
     const isAllowedRoute = allowedRoutes.some((route) =>
       pathname?.startsWith(route)
     );
 
-    // Só bloqueia se for desktop E não estiver em rota permitida
-    if (isAllowedRoute) {
+    // Se está em /web ou subrotas, NÃO bloqueia independente do dispositivo
+    // (o middleware já bloqueia mobile de acessar /web)
+    if (pathname?.startsWith('/web')) {
+      setBlocked(false);
+    } else if (isAllowedRoute) {
       setBlocked(false);
     } else {
       setBlocked(isDesktopFromBrowser());
@@ -27,7 +33,9 @@ export function DesktopRestriction({ children }: { children: React.ReactNode }) 
 
     // Re-checar se a tela for redimensionada
     const handleResize = () => {
-      if (isAllowedRoute) {
+      if (pathname?.startsWith('/web')) {
+        setBlocked(false);
+      } else if (isAllowedRoute) {
         setBlocked(false);
       } else {
         setBlocked(isDesktopFromBrowser());

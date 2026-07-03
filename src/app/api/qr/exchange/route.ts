@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { qrAuthService } from '@/services/qr-auth.service';
+import { qrAuthService, webSessionService } from '@/services';
 import { userService } from '@/services';
 
 export async function POST(request: Request) {
@@ -36,6 +36,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
+    // ── Criar sessão web com validade de 7 dias ──
+    await webSessionService.createSession(profile.id, session.authId);
+
     // Usar Supabase Admin (service role) para gerar magic link
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,11 +52,12 @@ export async function POST(request: Request) {
     );
 
     // Gerar magic link sem enviar email (admin API não envia email)
+    // Redireciona para /web (página da aplicação web restrita)
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email: profile.email,
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/chat`,
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/web`,
       },
     });
 

@@ -31,6 +31,7 @@ model User {
   messageReads          MessageRead[]
   devices               Device[]
   ownedConversations    Conversation[]       @relation("ConversationOwner")
+  webSessions           WebSession[]
 
   @@index([username])
   @@index([email])
@@ -195,4 +196,19 @@ model QrAuthSession {
   @@index([status])
   @@index([expiresAt])
   @@map("qr_auth_sessions")
+}
+
+model WebSession {
+  id        String   @id @default(uuid())
+  userId    String
+  authId    String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  expiresAt DateTime @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([authId])
+  @@index([expiresAt])
+  @@map("web_sessions")
 }
