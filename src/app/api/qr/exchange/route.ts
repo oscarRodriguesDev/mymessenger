@@ -42,15 +42,16 @@ export async function POST(request: Request) {
     await webSessionService.createSession(profile.id, session.authId);
 
     // ═══════════════════════════════════════════════════════════════
-    // TROCAR OTP POR SESSÃO (VIA SERVER-SIDE)
+    // CRIAR SESSÃO SUPABASE SERVER-SIDE
     // ═══════════════════════════════════════════════════════════════
     // 1) Gera magic link via Admin API
-    // 2) Extrai o token OTP da URL do magic link
-    // 3) Chama POST /auth/v1/verify (server-side) para trocar
-    //    o OTP por access_token + refresh_token
-    // 4) Seta os cookies de sessão via Supabase SSR
+    // 2) Visita o action_link via GET server-side (como o navegador
+    //    faria) — o Supabase redireciona (302) para o redirectTo
+    //    com tokens no hash (#access_token=xxx&refresh_token=yyy)
+    // 3) Extrai os tokens do hash da URL de redirect
+    // 4) Seta a sessão no servidor via Supabase SSR (setSession)
     //
-    // Isso evita o redirect cross-domain do navegador!
+    // Isso evita o redirect cross-domain e a perda do hash!
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -91,49 +92,54 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2) Extrair o token OTP da action_link
-    const urlObj = new URL(actionLink);
-    const otpToken = urlObj.searchParams.get('token');
-    if (!otpToken) {
-      return NextResponse.json(
-        { error: 'Token OTP não encontrado no link' },
-        { status: 500 }
-      );
-    }
-
-    // 3) Trocar OTP por sessão via server-side
-    // O Supabase GoTrue exige email + token para verificar magic link
-    const verifyRes = await fetch(`${supabaseUrl}/auth/v1/verify`, {
-      method: 'POST',
+    // 2) Visitar o action_link via GET (server-side) como o navegador faria
+    // O Supabase processa o magic link e redireciona (302) para a URL de
+    // redirectTo com os tokens de sessão no hash (#access_token=...).
+    // Precisamos seguir manualmente para capturar os dados.
+    const magicRes = await fetch(actionLink, {
+      method: 'GET',
+      redirect: 'manual',
       headers: {
-        'Content-Type': 'application/json',
-        apikey: anonKey,
+        'User-Agent': 'Mozilla/5.0 (compatible; MessengerWeb/1.0)',
       },
-      body: JSON.stringify({
-        type: 'magiclink',
-        email: profile.email,
-        token: otpToken,
-        redirect_to: `${baseUrl}/web`,
-      }),
     });
 
-    if (!verifyRes.ok) {
-      const errBody = await verifyRes.text();
-      console.error('Verify OTP error:', verifyRes.status, errBody);
+    // Pega o Location do redirect (ex: /web#access_token=xxx&refresh_token=yyy)
+    const locationHeader = magicRes.headers.get('location');
+    if (!locationHeader) {
+      console.error('No redirect location, status:', magicRes.status);
       return NextResponse.json(
-        { error: 'Erro ao verificar token de autenticação' },
+        { error: 'Erro no redirecionamento de autenticação' },
         { status: 500 }
       );
     }
 
-    const verifyData = await verifyRes.json();
-    const accessToken: string = verifyData.access_token;
-    const refreshToken: string = verifyData.refresh_token;
+    // Resolver o Location (pode ser relativo ou absoluto)
+    const redirectUrl = locationHeader.startsWith('http')
+      ? new URL(locationHeader)
+      : new URL(locationHeader, baseUrl);
+
+    // Extrair o hash da URL de redirect
+    // O Supabase inclui os tokens no hash: #access_token=xxx&refresh_token=yyy
+    const hashPart = redirectUrl.hash.replace(/^#/, '');
+
+    if (!hashPart) {
+      console.error('No hash in redirect location:', locationHeader);
+      return NextResponse.json(
+        { error: 'Tokens de autenticação não encontrados no redirect' },
+        { status: 500 }
+      );
+    }
+
+    // Parsear os parâmetros do hash
+    const hashParams = new URLSearchParams(hashPart);
+    const accessToken: string | null = hashParams.get('access_token');
+    const refreshToken: string | null = hashParams.get('refresh_token');
 
     if (!accessToken || !refreshToken) {
-      console.error('Verify response missing tokens:', verifyData);
+      console.error('Missing tokens in hash. Hash:', hashPart);
       return NextResponse.json(
-        { error: 'Resposta de autenticação inválida' },
+        { error: 'Tokens de sessão não encontrados' },
         { status: 500 }
       );
     }
