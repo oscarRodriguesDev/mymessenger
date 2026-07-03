@@ -295,56 +295,36 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl gap-6 p-6">
-      {/* Sidebar de navegação */}
-      <aside className="hidden w-64 shrink-0 md:block">
-        <nav className="space-y-1">
+    <div className="flex min-h-screen flex-col bg-background">
+      {/* Cabeçalho */}
+      <div className="space-y-2 border-b border-border bg-card/50 px-4 py-5 sm:px-6">
+        <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
+        <p className="text-sm text-muted-foreground">Gerencie suas informações pessoais e preferências</p>
+      </div>
+
+      {/* Seletor de seção - tabs horizontal */}
+      <div className="sticky top-16 z-40 border-b border-border bg-card/95 backdrop-blur-sm">
+        <div className="flex gap-1 overflow-x-auto px-4 py-3 sm:px-6 sm:gap-2">
           {sections.map((s) => (
             <button
               key={s.key}
               onClick={() => setActiveSection(s.key)}
-              className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition-all duration-200 ${
+              className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 sm:px-4 ${
                 activeSection === s.key
-                  ? 'bg-primary text-primary-foreground shadow-lg'
+                  ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
               }`}
             >
-              <span className="text-lg">{s.icon}</span>
-              {s.label}
+              <span className="text-base">{s.icon}</span>
+              <span className="hidden sm:inline">{s.label}</span>
             </button>
           ))}
-        </nav>
-      </aside>
+        </div>
+      </div>
 
       {/* Conteúdo */}
-      <div className="flex-1 space-y-6">
-        {/* Cabeçalho mobile */}
-        <div className="flex items-center gap-3 md:hidden">
-          <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
-        </div>
-
-        <div className="hidden md:block">
-          <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Gerencie suas informações pessoais e preferências</p>
-        </div>
-
-        {/* Seletor de seção mobile */}
-        <div className="flex gap-2 overflow-x-auto pb-2 md:hidden">
-          {sections.map((s) => (
-            <button
-              key={s.key}
-              onClick={() => setActiveSection(s.key)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition-all ${
-                activeSection === s.key
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-muted-foreground'
-              }`}
-            >
-              <span>{s.icon}</span>
-              {s.label}
-            </button>
-          ))}
-        </div>
+      <div className="flex-1 space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+        <div className="mx-auto w-full max-w-2xl">
 
         {/* ---------------------------------------------------------------- */}
         {/* SEÇÃO: PERFIL */}
@@ -372,7 +352,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
+                <div className="grid gap-4 grid-cols-1 sm:gap-5 sm:grid-cols-2">
                   <FormField
                     label="Nome completo"
                     value={fullName}
@@ -423,13 +403,13 @@ export default function SettingsPage() {
               </p>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col items-center gap-6 sm:flex-row">
-                <div className="relative">
+              <div className="flex flex-col items-center gap-4 sm:gap-6 sm:flex-row sm:items-start">
+                <div className="relative shrink-0">
                   <Avatar
                     src={avatarPreview}
                     fallback={profile?.fullName || 'U'}
                     size="lg"
-                    className="h-32 w-32 text-3xl shadow-lg"
+                    className="h-28 w-28 text-2xl shadow-lg sm:h-32 sm:w-32 sm:text-3xl"
                   />
                   {loadingAvatar && (
                     <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
@@ -438,7 +418,7 @@ export default function SettingsPage() {
                   )}
                 </div>
 
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 text-center sm:text-left">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -446,15 +426,29 @@ export default function SettingsPage() {
                     className="hidden"
                     onChange={handleAvatarChange}
                   />
-                  <Button type="button" variant="primary" onClick={handleAvatarClick} disabled={loadingAvatar}>
-                    {loadingAvatar ? 'Enviando...' : 'Escolher foto'}
-                  </Button>
-                  {profile?.avatarUrl && (
-                    <Button type="button" variant="ghost" onClick={handleRemoveAvatar} disabled={loadingAvatar}>
-                      Remover foto
+                  <div className="w-full flex flex-col gap-2 sm:w-auto">
+                    <Button 
+                      type="button" 
+                      variant="primary" 
+                      onClick={handleAvatarClick} 
+                      disabled={loadingAvatar}
+                      className="w-full sm:w-auto"
+                    >
+                      {loadingAvatar ? 'Enviando...' : 'Escolher foto'}
                     </Button>
-                  )}
-                  <p className="text-xs text-muted-foreground">
+                    {profile?.avatarUrl && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        onClick={handleRemoveAvatar} 
+                        disabled={loadingAvatar}
+                        className="w-full sm:w-auto"
+                      >
+                        Remover foto
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center sm:text-left">
                     PNG, JPEG ou WebP. Máximo 5MB.
                   </p>
                 </div>
@@ -584,10 +578,12 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
-      )}
+        {/* Toast */}
+        {toast && (
+          <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+        )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -607,8 +603,8 @@ function ToggleSetting({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-border bg-secondary/30 p-4">
-      <div className="space-y-0.5">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-secondary/30 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+      <div className="space-y-1 sm:space-y-0.5 flex-1">
         <p className="text-sm font-medium text-foreground">{label}</p>
         <p className="text-xs text-muted-foreground">{description}</p>
       </div>
