@@ -102,6 +102,7 @@ export async function POST(request: Request) {
     }
 
     // 3) Trocar OTP por sessão via server-side
+    // O Supabase GoTrue exige email + token para verificar magic link
     const verifyRes = await fetch(`${supabaseUrl}/auth/v1/verify`, {
       method: 'POST',
       headers: {
@@ -110,6 +111,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         type: 'magiclink',
+        email: profile.email,
         token: otpToken,
         redirect_to: `${baseUrl}/web`,
       }),
