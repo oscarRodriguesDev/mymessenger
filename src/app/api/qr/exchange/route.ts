@@ -167,14 +167,20 @@ export async function POST(request: Request) {
         set(name: string, value: string, options: CookieOptions) {
           response.cookies.set(name, value, {
             ...options,
-            httpOnly: true,
+            // Não forçar httpOnly — o cliente (createBrowserClient) precisa
+            // ler os cookies via document.cookie para autenticar o usuário.
+            // O default da biblioteca é httpOnly: false.
             secure: isSecure,
-            sameSite: 'lax',
             path: '/',
           });
         },
         remove(name: string, options: CookieOptions) {
-          response.cookies.set(name, '', { ...options, maxAge: 0, path: '/' });
+          response.cookies.set(name, '', {
+            ...options,
+            maxAge: 0,
+            path: '/',
+            secure: isSecure,
+          });
         },
       },
     });
