@@ -89,10 +89,10 @@ export default function ChatPage() {
 
     return (
       <div className="flex h-full flex-col">
-        <header className="flex items-center gap-3 border-b border-border bg-card p-4">
+        <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-3 sm:p-4">
           <button
             onClick={() => setSelectedConversationId(null)}
-            className="rounded-md p-1.5 hover:bg-secondary"
+            className="shrink-0 rounded-md p-1.5 hover:bg-secondary transition-colors"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -102,8 +102,9 @@ export default function ChatPage() {
             src={selectedConversation?.avatarUrl}
             fallback={conversationName}
             size="sm"
+            className="h-10 w-10"
           />
-          <h1 className="text-lg font-semibold">{conversationName}</h1>
+          <h1 className="text-base font-semibold truncate sm:text-lg">{conversationName}</h1>
         </header>
         <ChatArea
           conversationId={selectedConversationId}
@@ -117,13 +118,13 @@ export default function ChatPage() {
   // Conversations list view
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-border bg-card p-4">
+      <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 sm:p-4">
         <h1 className="text-lg font-semibold">Mensagens</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => router.push('/contacts')}
             title="Nova conversa"
-            className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -132,7 +133,7 @@ export default function ChatPage() {
           <button
             onClick={signOut}
             title="Sair"
-            className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -141,13 +142,13 @@ export default function ChatPage() {
         </div>
       </header>
 
-      <div className="p-4">
+      <div className="p-3 sm:p-4">
         <input
           type="text"
           placeholder="Buscar conversas..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm focus:border-primary focus:outline-none"
+          className="w-full rounded-lg border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
         />
       </div>
 
@@ -165,19 +166,21 @@ export default function ChatPage() {
             <button
               key={conv.id}
               onClick={() => setSelectedConversationId(conv.id)}
-              className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-secondary"
+              className="flex w-full items-center gap-3 border-b border-border/50 p-3 text-left transition-colors hover:bg-secondary/30 sm:p-4"
             >
               <Avatar
                 src={getConversationAvatar(conv)}
                 fallback={getConversationName(conv)}
+                size="sm"
+                className="h-12 w-12"
               />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium truncate">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium truncate text-sm sm:text-base">
                     {getConversationName(conv)}
                   </span>
                   {conv.lastMessage && (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground shrink-0">
                       {new Date(conv.lastMessage.createdAt).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -186,8 +189,8 @@ export default function ChatPage() {
                   )}
                 </div>
                 {conv.lastMessage && (
-                  <p className="text-sm text-muted-foreground truncate">
-                    {conv.lastMessage.sender}: {conv.lastMessage.text}
+                  <p className="text-xs text-muted-foreground truncate sm:text-sm">
+                    <span className="font-medium">{conv.lastMessage.sender}:</span> {conv.lastMessage.text}
                   </p>
                 )}
               </div>
