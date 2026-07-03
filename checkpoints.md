@@ -154,6 +154,60 @@ Modificados:
 
 ---
 
+## 03/07/2026 - CORREÇÃO: Middleware bloqueava APIs no desktop após login QR
+
+### Problema
+Após escanear o QR code, o exchange retornava 200 com `redirectTo: /web#access_token=xxx`, mas o navegador redirecionava de volta para `/web-access`. Loop infinito.
+
+### Causa raiz
+O middleware `middleware.ts` bloqueava TODAS as APIs no desktop, exceto `/api/qr/*` e `/api/web/*`:
+
+```javascript
+if (isDesktop && !isAllowedApi) {
+    return NextResponse.json({ error: '...' }, { status: 403 });
+}
+```
+
+Quando o `syncProfile()` (chamado pelo `AuthProvider` após processar o hash do magic link) fazia `POST /api/auth/sync`, o middleware retornava **403 Forbidden** porque `/api/auth/` não estava na whitelist.
+
+Com `profile = null` (nunca setado porque o sync falhou), a página `/web` executava:
+```javascript
+if (!user || !profile) {
+    router.replace('/web-access');
+    return;
+}
+```
+
+redirecionando de volta para o QR code.
+
+### Correção
+Adicionada verificação de autenticação no middleware:
+- Desktop **autenticado** (já passou pelo fluxo QR) → **permite** qualquer API
+- Desktop **não autenticado** → mantém bloqueio (403)
+
+```javascript
+if (isDesktop && !isAllowedApi) {
+    if (user) {  // <-- NOVO: desktop autenticado permite APIs
+        return response;
+    }
+    return NextResponse.json({ error: '...' }, { status: 403 });
+}
+```
+
+### Arquivo modificado
+- `src/lib/supabase/middleware.ts`
+
+### Impacto
+- `/api/auth/sync` → agora funciona (syncProfile)
+- `/api/conversations` → agora funciona (carregar conversas)
+- `/api/messages` → agora funciona (ChatArea)
+- Demais APIs do chat → todas funcionam para desktop autenticado
+
+### Estado do build
+- ✅ Build validado com sucesso
+
+---
+
 ## 03/07/2026 - Corrigido leitor de QR code (/scan-qr)
 
 ### Problemas identificados

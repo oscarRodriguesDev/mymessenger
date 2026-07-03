@@ -31,3 +31,8 @@ Corrigido leitor de QR code na página /scan-qr: (1) scanner agora inicia APENAS
 - **Commits:** Só commitar alterações quando o usuário pedir **expressamente**. Não commitar automaticamente ao finalizar tarefas. | AUTOR: USUARIO
 
 Implementada aplicação web restrita para desktop (/web): (1) criado modelo WebSession no Prisma com expiração de 7 dias; (2) criado web-session.service.ts para gerenciar sessões; (3) criada página /web com chat restrito (apenas envio/recebimento de mensagens) e layout desktop otimizado; (4) QR exchange agora cria WebSession e redireciona magic link para /web em vez de /chat; (5) middleware atualizado: desktop não logado → /web-access, desktop logado → /web, mobile bloqueado de /web; (6) DesktopRestriction atualizado para permitir /web; (7) criada API GET/DELETE /api/web/session para verificar e encerrar sessão web. | AUTOR: VIBECODE
+
+## BUG FIX (03/07/2026)
+- **Problema:** Após escanear QR e exchange retornar 200, o frontend redirecionava para `/web#access_token=xxx` mas voltava para `/web-access` em loop.
+- **Causa raiz:** O middleware (`middleware.ts`) bloqueava TODAS as APIs no desktop exceto `/api/qr/*` e `/api/web/*`. Quando o `syncProfile()` chamava `POST /api/auth/sync`, o middleware retornava 403 (desktop + rota não permitida). Com `profile = null`, a página `/web` redirecionava de volta para `/web-access`.
+- **Correção:** No middleware, desktop autenticado (que já passou pelo fluxo QR) agora tem permissão para acessar qualquer API. Adicionado `if (user) { return response; }` antes do bloqueio 403, permitindo que `syncProfile`, `/api/conversations`, `/api/messages`, etc. funcionem na versão web. | AUTOR: VIBECODE

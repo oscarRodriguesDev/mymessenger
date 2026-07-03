@@ -38,10 +38,18 @@ export async function updateSession(request: NextRequest) {
   // APIs: Bloquear TODAS as APIs no desktop (exceto QR e web session)
   // ───────────────────────────────────────────────────────────────
   if (pathname.startsWith('/api/')) {
+    // APIs sempre permitidas no desktop (fluxo QR/web)
     const isAllowedApi =
       pathname.startsWith('/api/qr/') || pathname.startsWith('/api/web/');
 
     if (isDesktop && !isAllowedApi) {
+      // Desktop autenticado (já passou pelo fluxo QR) → permite
+      // Isso é necessário para que syncProfile, conversations, messages,
+      // e demais APIs funcionem corretamente na versão web.
+      if (user) {
+        return response;
+      }
+
       return NextResponse.json(
         { error: 'Acesso não permitido em desktop. Use /web-access para conectar via QR.' },
         { status: 403 }
