@@ -212,17 +212,33 @@ export default function WebAccessPage() {
           <ol className="space-y-2 text-sm text-muted-foreground">
             <li className="flex items-start gap-2">
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">1</span>
-              Abra o Messenger no seu celular
+              No seu celular, toque no botão <span className="font-medium text-foreground">Escanear QR Code</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">2</span>
-              Vá em <span className="font-medium text-foreground">Configurações</span> {'>'} <span className="font-medium text-foreground">Messenger Web</span>
+              Aponte a câmera para o QR Code acima
             </li>
             <li className="flex items-start gap-2">
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">3</span>
-              Escaneie este QR code com a câmera do celular
+              A conexão será confirmada automaticamente
             </li>
           </ol>
+          
+          {/* Botão para acessar scanner mobile */}
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-xs text-muted-foreground mb-2">
+              Ou acesse diretamente no celular:
+            </p>
+            <a
+              href="/scan-qr"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-all hover:bg-primary/20"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+              </svg>
+              Abrir scanner no celular
+            </a>
+          </div>
         </div>
       </div>
     </div>
