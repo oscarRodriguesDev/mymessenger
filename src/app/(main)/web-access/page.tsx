@@ -69,9 +69,10 @@ export default function WebAccessPage() {
             });
             const exchangeData = await exchangeRes.json();
 
-            if (exchangeRes.ok && exchangeData.actionLink) {
-              // Redirecionar para o magic link (completa o login Supabase)
-              window.location.href = exchangeData.actionLink;
+            if (exchangeRes.ok && exchangeData.redirectTo) {
+              // Redirecionar para a página da aplicação web
+              // (a sessão já foi configurada nos cookies pelo servidor)
+              window.location.href = exchangeData.redirectTo;
             } else {
               setErrorMsg('Erro ao finalizar login. Tente novamente.');
               setStatus('error');
