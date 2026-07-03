@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { qrAuthService, webSessionService } from '@/services';
@@ -41,77 +42,130 @@ export async function POST(request: Request) {
     await webSessionService.createSession(profile.id, session.authId);
 
     // ═══════════════════════════════════════════════════════════════
-    // CRIAR SESSÃO SUPABASE DIRETAMENTE VIA ADMIN API
+    // TROCAR OTP POR SESSÃO (VIA SERVER-SIDE)
     // ═══════════════════════════════════════════════════════════════
-    // Em vez de magic link (redirect cross-domain frágil),
-    // criamos a sessão via Admin API e setamos cookies diretamente.
+    // 1) Gera magic link via Admin API
+    // 2) Extrai o token OTP da URL do magic link
+    // 3) Chama POST /auth/v1/verify (server-side) para trocar
+    //    o OTP por access_token + refresh_token
+    // 4) Seta os cookies de sessão via Supabase SSR
+    //
+    // Isso evita o redirect cross-domain do navegador!
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-    // 1) Criar sessão via GoTrue Admin API
-    const sessionRes = await fetch(`${supabaseUrl}/auth/v1/admin/sessions`, {
+    // ── Obter URL base dinamicamente ──
+    const baseUrl =
+      request.headers.get('origin') ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      'http://localhost:3000';
+
+    // 1) Gerar magic link via Admin API
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: profile.email,
+      options: {
+        redirectTo: `${baseUrl}/web`,
+      },
+    });
+
+    if (linkError || !data) {
+      console.error('Generate link error:', linkError);
+      return NextResponse.json(
+        { error: 'Erro ao gerar link de autenticação' },
+        { status: 500 }
+      );
+    }
+
+    const actionLink: string | undefined = data.properties?.action_link;
+    if (!actionLink) {
+      return NextResponse.json(
+        { error: 'Erro ao gerar link de autenticação' },
+        { status: 500 }
+      );
+    }
+
+    // 2) Extrair o token OTP da action_link
+    const urlObj = new URL(actionLink);
+    const otpToken = urlObj.searchParams.get('token');
+    if (!otpToken) {
+      return NextResponse.json(
+        { error: 'Token OTP não encontrado no link' },
+        { status: 500 }
+      );
+    }
+
+    // 3) Trocar OTP por sessão via server-side
+    const verifyRes = await fetch(`${supabaseUrl}/auth/v1/verify`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        Authorization: `Bearer ${serviceRoleKey}`,
+        apikey: anonKey,
       },
-      body: JSON.stringify({ user_id: session.authId }),
+      body: JSON.stringify({
+        type: 'magiclink',
+        token: otpToken,
+        redirect_to: `${baseUrl}/web`,
+      }),
     });
 
-    if (!sessionRes.ok) {
-      const errBody = await sessionRes.text();
-      console.error('Admin create session error:', sessionRes.status, errBody);
+    if (!verifyRes.ok) {
+      const errBody = await verifyRes.text();
+      console.error('Verify OTP error:', verifyRes.status, errBody);
       return NextResponse.json(
-        { error: 'Erro ao criar sessão de autenticação' },
+        { error: 'Erro ao verificar token de autenticação' },
         { status: 500 }
       );
     }
 
-    const sessionData = await sessionRes.json();
-    const accessToken: string = sessionData.access_token;
-    const refreshToken: string = sessionData.refresh_token;
+    const verifyData = await verifyRes.json();
+    const accessToken: string = verifyData.access_token;
+    const refreshToken: string = verifyData.refresh_token;
 
     if (!accessToken || !refreshToken) {
-      console.error('Admin session missing tokens:', sessionData);
+      console.error('Verify response missing tokens:', verifyData);
       return NextResponse.json(
-        { error: 'Erro ao obter tokens de sessão' },
+        { error: 'Resposta de autenticação inválida' },
         { status: 500 }
       );
     }
 
-    // 2) Marcar sessão QR como expirada
+    // 4) Marcar sessão QR como expirada
     await qrAuthService.expireSession(session.id);
 
-    // 3) Construir resposta e usar Supabase SSR para setar cookies
+    // 5) Construir resposta e usar Supabase SSR para setar cookies
     const response = NextResponse.json({
       redirectTo: '/web',
       email: profile.email,
     });
 
-    // Obter cookies da requisição via next/headers
     const cookieStore = await cookies();
 
-    // Usar o Supabase SSR client para setar os cookies corretamente
-    const supabase = createServerClient(
-      supabaseUrl,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value ?? null;
-          },
-          set(name: string, value: string, options: CookieOptions) {
-            // Propagar os cookies para a resposta HTTP
-            response.cookies.set(name, value, options);
-          },
-          remove(name: string, options: CookieOptions) {
-            response.cookies.set(name, '', { ...options, maxAge: 0 });
-          },
+    const supabase = createServerClient(supabaseUrl, anonKey, {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value ?? null;
         },
-      }
-    );
+        set(name: string, value: string, options: CookieOptions) {
+          response.cookies.set(name, value, {
+            ...options,
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+            path: '/',
+          });
+        },
+        remove(name: string, options: CookieOptions) {
+          response.cookies.set(name, '', { ...options, maxAge: 0, path: '/' });
+        },
+      },
+    });
 
     const { error: setSessionError } = await supabase.auth.setSession({
       access_token: accessToken,
