@@ -23,3 +23,8 @@ Criada página de configurações do usuário (/settings) com seções de Perfil
 Implementado Messenger Web via QR code (estilo WhatsApp Web). Criado modelo QrAuthSession no banco, APIs /api/qr/*, páginas /web-access (desktop) e /scan (mobile). Middleware bloqueia APIs no desktop exceto QR. DesktopRestriction no frontend permite rotas do fluxo QR. Usuário escaneia QR no celular e é autenticado no desktop via magic link Supabase. | AUTOR: VIBECODE
 
 Corrigido leitor de QR code na página /scan-qr: (1) scanner agora inicia APENAS por clique do usuário ("Iniciar câmera") para garantir que o navegador solicite permissão de uso da câmera (getUserMedia vindo de gesto do usuário); (2) div #qr-reader agora fica SEMPRE no DOM (hidden quando não está escaneando) para evitar erro "Element not found" do Html5Qrcode; (3) adicionada verificação de disponibilidade de câmera ao montar o componente; (4) qrbox responsivo (80% do viewfinder) e fps aumentado para 15 para leitura mais confiável; (5) tratamento de erros mais específico (Permission, NotFound). | AUTOR: VIBECODE
+
+## PREFERÊNCIA DO USUÁRIO (03/07/2026)
+- **Branch a usar daqui em diante:** `vibecode`
+- **Branch obsoleta (não usar mais):** `v0/melhoria-visual-da-aplicacao-d7f71782`
+- Todo código deve ser mantido atualizado na branch `vibecode` | AUTOR: USUARIO
