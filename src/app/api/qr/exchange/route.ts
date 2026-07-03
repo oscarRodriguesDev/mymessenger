@@ -40,22 +40,20 @@ export async function POST(request: Request) {
     await webSessionService.createSession(profile.id, session.authId);
 
     // ═══════════════════════════════════════════════════════════════
-    // CRIAR SESSÃO SUPABASE SERVER-SIDE
+    // OBTER TOKENS DE SESSÃO VIA MAGIC LINK (SERVER-SIDE)
     // ═══════════════════════════════════════════════════════════════
     // 1) Gera magic link via Admin API
-    // 2) Visita o action_link via GET server-side (como o navegador
-    //    faria) — o Supabase redireciona (302) para o redirectTo
-    //    com tokens no hash (#access_token=xxx&refresh_token=yyy)
+    // 2) Visita o action_link via GET server-side
     // 3) Extrai os tokens do hash da URL de redirect
-    // 4) Seta a sessão no servidor via Supabase SSR (setSession)
+    // 4) Retorna redirectTo com tokens no hash para o frontend
     //
-    // Isso evita o redirect cross-domain e a perda do hash!
+    // O GoTrueClient no frontend detecta #access_token= no hash
+    // e processa o implicit grant callback automaticamente,
+    // obtendo o usuário e criando a sessão!
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-    // ── Obter URL base dinamicamente ──
     const baseUrl =
       request.headers.get('origin') ||
       process.env.NEXT_PUBLIC_APP_URL ||
@@ -90,10 +88,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2) Visitar o action_link via GET (server-side) como o navegador faria
-    // O Supabase processa o magic link e redireciona (302) para a URL de
-    // redirectTo com os tokens de sessão no hash (#access_token=...).
-    // Precisamos seguir manualmente para capturar os dados.
+    // 2) Visitar o action_link via GET (server-side)
     const magicRes = await fetch(actionLink, {
       method: 'GET',
       redirect: 'manual',
@@ -102,7 +97,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // Pega o Location do redirect (ex: /web#access_token=xxx&refresh_token=yyy)
+    // Extrair tokens do hash da URL de redirect
     const locationHeader = magicRes.headers.get('location');
     if (!locationHeader) {
       console.error('No redirect location, status:', magicRes.status);
@@ -112,13 +107,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Resolver o Location (pode ser relativo ou absoluto)
     const redirectUrl = locationHeader.startsWith('http')
       ? new URL(locationHeader)
       : new URL(locationHeader, baseUrl);
 
-    // Extrair o hash da URL de redirect
-    // O Supabase inclui os tokens no hash: #access_token=xxx&refresh_token=yyy
     const hashPart = redirectUrl.hash.replace(/^#/, '');
 
     if (!hashPart) {
@@ -129,10 +121,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Parsear os parâmetros do hash
     const hashParams = new URLSearchParams(hashPart);
-    const accessToken: string | null = hashParams.get('access_token');
-    const refreshToken: string | null = hashParams.get('refresh_token');
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
 
     if (!accessToken || !refreshToken) {
       console.error('Missing tokens in hash. Hash:', hashPart);
@@ -142,69 +133,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4) Marcar sessão QR como expirada
+    // 3) Marcar sessão QR como expirada
     await qrAuthService.expireSession(session.id);
 
-    // 5) Construir resposta e definir cookie de sessão manualmente
-    const response = NextResponse.json({
-      redirectTo: '/web',
-      email: profile.email,
-    });
-
-    // Determinar se a conexão é segura (produção com HTTPS)
-    const isSecure =
-      request.url.startsWith('https://') || process.env.NODE_ENV === 'production';
-
-    // ── Buscar dados do usuário a partir do access_token ──
-    const { data: { user: sessionUser }, error: userError } =
-      await supabaseAdmin.auth.getUser(accessToken);
-
-    if (userError || !sessionUser) {
-      console.error('Get user error:', userError);
-      return NextResponse.json(
-        { error: 'Token de acesso inválido' },
-        { status: 500 }
-      );
-    }
-
-    // ── Calcular expiração ──
-    // Usar expires_at do hash se disponível, senão 1 hora a partir de agora
-    const expiresAtStr = hashParams.get('expires_at');
-    const expiresInStr = hashParams.get('expires_in');
-    const expiresAt = expiresAtStr
-      ? parseInt(expiresAtStr, 10)
-      : Math.floor(Date.now() / 1000) + (expiresInStr ? parseInt(expiresInStr, 10) : 3600);
-
-    // ── Montar objeto de sessão no formato que o gotrue-js espera ──
-    const authSession = {
+    // 4) Passar os tokens para o frontend via hash na URL
+    // O GoTrueClient no frontend detecta #access_token=...
+    // e processa como implicit grant callback automaticamente!
+    const hashForRedirect = new URLSearchParams({
       access_token: accessToken,
       refresh_token: refreshToken,
-      token_type: 'bearer',
-      expires_in: expiresAt - Math.floor(Date.now() / 1000),
-      expires_at: expiresAt,
-      user: sessionUser,
-    };
-
-    // ── Codificar no formato que @supabase/ssr espera ──
-    // Formato: base64-<base64url(sessionJSON)>
-    // O cookie é armazenado como 'supabase.auth.token' (chunked se > 3180 chars)
-    const sessionJSON = JSON.stringify(authSession);
-    const BASE64_PREFIX = 'base64-';
-
-    // Usar Buffer do Node.js para base64url (compatível com a lib @supabase/ssr)
-    const base64url = Buffer.from(sessionJSON, 'utf-8').toString('base64url');
-    const cookieValue = BASE64_PREFIX + base64url;
-
-    // Se o valor couber em um único cookie (< 3180 bytes decodificados), não chunk
-    response.cookies.set('supabase.auth.token', cookieValue, {
-      path: '/',
-      sameSite: 'lax',
-      httpOnly: false,
-      secure: isSecure,
-      maxAge: 7 * 24 * 60 * 60, // 7 dias
+      expires_in: hashParams.get('expires_in') || '3600',
+      token_type: hashParams.get('token_type') || 'bearer',
     });
 
-    return response;
+    return NextResponse.json({
+      redirectTo: `/web#${hashForRedirect.toString()}`,
+      email: profile.email,
+    });
   } catch (error) {
     console.error('QR exchange error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
