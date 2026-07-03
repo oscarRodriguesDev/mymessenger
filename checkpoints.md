@@ -104,6 +104,28 @@ Modificados:
 
 ---
 
+## 03/07/2026 - Corrigido leitor de QR code (/scan-qr)
+
+### Problemas identificados
+1. **Permissão de câmera não aparecia:** `startScanner()` era chamado automaticamente no `useEffect` ao montar o componente, sem gesto do usuário. Navegadores modernos bloqueiam `getUserMedia` sem interação do usuário.
+2. **Erro "Element not found":** O `Html5Qrcode` lança exceção se o elemento `#qr-reader` não existir no DOM. O div era renderizado condicionalmente (`{scanning && <div id="qr-reader">}`), mas a state update assíncrona do React não tinha processado a renderização antes do construtor tentar encontrá-lo.
+
+### O que foi feito
+- **Scanner inicia apenas por clique do usuário** — removido `startScanner()` do `useEffect` de montagem. O usuário precisa clicar "Iniciar câmera" para acionar a câmera, garantindo que `getUserMedia` seja chamado a partir de um gesto do usuário.
+- **Div #qr-reader sempre no DOM** — agora o elemento está sempre presente (com `hidden` quando não escaneando), eliminando o erro `"HTML Element with id=qr-reader not found"`.
+- **Verificação de câmera disponível** — `Html5Qrcode.getCameras()` é chamado na montagem para detectar se há câmera antes de exibir o botão.
+- **QR box responsivo** — usa função que retorna 80% do menor lado do viewfinder (adaptável a diferentes tamanhos de tela).
+- **FPS aumentado para 15** — mais quadros por segundo = detecção mais rápida e confiável.
+- **Tratamento de erros específico** — mensagens diferentes para Permission, NotFoundError e erros genéricos.
+
+### Arquivo modificado
+- `src/app/(main)/scan-qr/page.tsx`
+
+### Estado do build
+- ✅ Build validado com sucesso
+
+---
+
 ## 02/07/2026 - Corrigido trigger e nomes de colunas no Realtime
 
 [Histórico anterior mantido]

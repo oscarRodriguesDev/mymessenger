@@ -1,73 +1,111 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useAuth } from '@/providers/AuthProvider';
 
 export default function ScanQRPage() {
   const router = useRouter();
-  const { user, profile } = useAuth();
-  
+  const { user } = useAuth();
+
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cameraAvailable, setCameraAvailable] = useState<boolean | null>(null);
   const [manualToken, setManualToken] = useState('');
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
-  const videoElementRef = useRef<HTMLVideoElement | null>(null);
+
+  // ─────────────────────────────────────────────────────────────
+  // Verificar disponibilidade de câmera ao montar
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    Html5Qrcode.getCameras()
+      .then((cameras) => {
+        setCameraAvailable(cameras && cameras.length > 0);
+      })
+      .catch(() => {
+        setCameraAvailable(false);
+      });
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────
+  // Redirecionar se não estiver logado
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user) {
+      router.push(`/login?redirect=${encodeURIComponent('/scan-qr')}`);
+    }
+  }, [user, router]);
+
+  // ─────────────────────────────────────────────────────────────
+  // Cleanup ao desmontar (para o scanner se estiver rodando)
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (html5QrCodeRef.current) {
+        html5QrCodeRef.current.stop().catch(() => {});
+        html5QrCodeRef.current.clear();
+      }
+    };
+  }, []);
 
   // ─────────────────────────────────────────────────────────────
   // Sucesso ao escanear
   // ─────────────────────────────────────────────────────────────
-  const handleScanSuccess = async (decodedText: string) => {
+  const handleScanSuccess = useCallback(async (decodedText: string) => {
     try {
-      // Parar scanner
       await stopScanner();
-      
+
       // Extrair token da URL ou usar o texto diretamente
       let token = decodedText;
-      
-      // Se for uma URL completa, extrair o token
+
       if (decodedText.includes('token=')) {
         const url = new URL(decodedText);
         token = url.searchParams.get('token') || decodedText;
       }
 
-      // Redirecionar para página de confirmação
       router.push(`/scan?token=${token}`);
     } catch (err) {
       setError('Erro ao processar QR Code. Tente novamente.');
       console.error(err);
     }
-  };
+  }, [router]);
 
   // ─────────────────────────────────────────────────────────────
-  // Erro ao escanear
+  // Erro ao escanear (ignora erros comuns de leitura)
   // ─────────────────────────────────────────────────────────────
-  const handleScanError = (errorMessage: string) => {
-    // Ignorar erros comuns de foco/detecção
-    if (errorMessage.includes('NotFoundException') || 
-        errorMessage.includes('No code has been found')) {
+  const handleScanError = useCallback((errorMessage: string) => {
+    if (
+      errorMessage.includes('NotFoundException') ||
+      errorMessage.includes('No code has been found')
+    ) {
       return;
     }
     console.log('QR Scan error:', errorMessage);
-  };
+  }, []);
 
   // ─────────────────────────────────────────────────────────────
-  // Iniciar scanner
+  // Iniciar scanner (chamado APENAS por clique do usuário)
   // ─────────────────────────────────────────────────────────────
-  const startScanner = async () => {
+  const startScanner = useCallback(async () => {
     setError(null);
     setScanning(true);
 
     try {
-      // Criar instância do scanner
       const html5QrCode = new Html5Qrcode('qr-reader');
       html5QrCodeRef.current = html5QrCode;
 
-      // Configurações da câmera
+      // ── Configurações otimizadas para leitura ──
       const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
+        fps: 15,                           // mais quadros = detecção mais rápida
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          // qrbox responsivo: 80% do menor lado do viewfinder
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          return {
+            width: minEdge * 0.8,
+            height: minEdge * 0.8,
+          };
+        },
         aspectRatio: 1.0,
         disableFlip: false,
       };
@@ -81,48 +119,45 @@ export default function ScanQRPage() {
       );
     } catch (err: any) {
       console.error('Erro ao iniciar scanner:', err);
-      setError(
-        err?.message?.includes('Permission')
-          ? 'Permissão de câmera negada. Permita o acesso às configurações do navegador.'
-          : 'Erro ao iniciar câmera. Tente novamente.'
-      );
+
+      const errorStr = err?.toString() ?? err?.message ?? '';
+
+      if (
+        errorStr.includes('NotAllowedError') ||
+        errorStr.includes('Permission') ||
+        errorStr.includes('permission')
+      ) {
+        setError(
+          'Permissão de câmera negada. Permita o acesso à câmera nas configurações do navegador e tente novamente.'
+        );
+      } else if (
+        errorStr.includes('NotFoundError') ||
+        errorStr.includes('NotFound')
+      ) {
+        setError('Câmera não encontrada. Verifique se o dispositivo possui câmera.');
+      } else {
+        setError('Erro ao iniciar câmera. Verifique as permissões e tente novamente.');
+      }
+
       setScanning(false);
     }
-  };
+  }, [handleScanSuccess, handleScanError]);
 
   // ─────────────────────────────────────────────────────────────
   // Parar scanner
   // ─────────────────────────────────────────────────────────────
-  const stopScanner = async () => {
+  const stopScanner = useCallback(async () => {
     if (html5QrCodeRef.current) {
       try {
         await html5QrCodeRef.current.stop();
         html5QrCodeRef.current.clear();
-        html5QrCodeRef.current = null;
       } catch (err) {
         console.error('Erro ao parar scanner:', err);
       }
+      html5QrCodeRef.current = null;
     }
     setScanning(false);
-  };
-
-  // ─────────────────────────────────────────────────────────────
-  // Iniciar scanner na montagem
-  // ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    // Verificar se está logado
-    if (!user) {
-      router.push(`/login?redirect=${encodeURIComponent('/scan-qr')}`);
-      return;
-    }
-
-    startScanner();
-
-    // Cleanup
-    return () => {
-      stopScanner();
-    };
-  }, [user]);
+  }, []);
 
   // ─────────────────────────────────────────────────────────────
   // Submit manual do token
@@ -157,8 +192,18 @@ export default function ScanQRPage() {
       {/* Conteúdo */}
       <div className="flex-1 px-4 py-6">
         <div className="mx-auto max-w-sm space-y-6">
-          {/* Área do scanner */}
+          {/* ── Área do scanner ── */}
           <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            {/*
+              Div do leitor SEMPRE presente no DOM (visível apenas durante scan).
+              Isso evita o erro "Element not found" do Html5Qrcode.
+            */}
+            <div id="qr-reader" className={`w-full ${scanning ? '' : 'hidden'}`} />
+
+            {/*
+              Estado inicial: câmera ainda não foi iniciada e não há erro
+              Exibe botão "Iniciar câmera" para garantir gesto do usuário
+            */}
             {!scanning && !error && (
               <div className="flex h-64 flex-col items-center justify-center gap-4 p-6">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
@@ -167,33 +212,60 @@ export default function ScanQRPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                 </div>
-                <p className="text-sm text-muted-foreground text-center">
-                  Aponte a câmera para o QR Code exibido no computador
-                </p>
-                <button
-                  onClick={startScanner}
-                  className="w-full rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
-                >
-                  Iniciar câmera
-                </button>
+
+                {cameraAvailable === false && (
+                  <p className="text-sm text-destructive text-center">
+                    Nenhuma câmera encontrada neste dispositivo.
+                  </p>
+                )}
+
+                {cameraAvailable === null && (
+                  <p className="text-sm text-muted-foreground text-center">
+                    Verificando disponibilidade da câmera...
+                  </p>
+                )}
+
+                {cameraAvailable === true && (
+                  <>
+                    <p className="text-sm text-muted-foreground text-center">
+                      Aponte a câmera para o QR Code exibido no computador
+                    </p>
+                    <button
+                      onClick={startScanner}
+                      className="w-full rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.98]"
+                    >
+                      Iniciar câmera
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
+            {/* Scanner ativo: overlay com moldura guia */}
             {scanning && (
               <div className="relative">
-                <div id="qr-reader" className="w-full" />
-                {/* Overlay com guia */}
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="h-64 w-64 border-2 border-primary/50 rounded-lg">
-                    <div className="absolute -top-1 -left-1 h-4 w-4 border-l-2 border-t-2 border-primary" />
-                    <div className="absolute -top-1 -right-1 h-4 w-4 border-r-2 border-t-2 border-primary" />
-                    <div className="absolute -bottom-1 -left-1 h-4 w-4 border-l-2 border-b-2 border-primary" />
-                    <div className="absolute -bottom-1 -right-1 h-4 w-4 border-r-2 border-b-2 border-primary" />
+                {/* Overlay com guia de leitura sobre o vídeo */}
+                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                  <div className="relative h-64 w-64">
+                    {/* Cantos da moldura */}
+                    <div className="absolute -top-1 -left-1 h-5 w-5 border-l-2 border-t-2 border-primary" />
+                    <div className="absolute -top-1 -right-1 h-5 w-5 border-r-2 border-t-2 border-primary" />
+                    <div className="absolute -bottom-1 -left-1 h-5 w-5 border-l-2 border-b-2 border-primary" />
+                    <div className="absolute -bottom-1 -right-1 h-5 w-5 border-r-2 border-b-2 border-primary" />
                   </div>
+                </div>
+
+                {/* Texto de "Escaneando..." no topo */}
+                <div className="pointer-events-none absolute left-0 right-0 top-3 z-10 text-center">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-background/80 px-3 py-1 text-xs text-foreground backdrop-blur-sm">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
+                    Escaneando...
+                  </span>
                 </div>
               </div>
             )}
 
+            {/* Estado de erro */}
             {error && (
               <div className="flex h-64 flex-col items-center justify-center gap-4 p-6">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
@@ -204,7 +276,7 @@ export default function ScanQRPage() {
                 <p className="text-sm text-muted-foreground text-center">{error}</p>
                 <button
                   onClick={startScanner}
-                  className="w-full rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
+                  className="w-full rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.98]"
                 >
                   Tentar novamente
                 </button>
@@ -226,7 +298,7 @@ export default function ScanQRPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">3</span>
-                Aponte a câmera do celular para o QR Code
+                Toque em <strong>Iniciar câmera</strong> e aponte para o QR Code
               </li>
               <li className="flex items-start gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">4</span>
