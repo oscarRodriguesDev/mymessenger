@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
+import { createClient } from '@/lib/supabase/client';
 import { Avatar } from '@/components/ui/avatar';
 import { ChatArea } from '@/features/chat/components/ChatArea';
 
@@ -109,7 +110,14 @@ export default function WebPage() {
   const handleSignOut = useCallback(async () => {
     setSigningOut(true);
     try {
+      // 1) Remove a WebSession do banco (apenas desktop)
       await fetch('/api/web/session', { method: 'DELETE' });
+
+      // 2) Limpa a sessão LOCALMENTE (só este browser)
+      //    scope:'local' NÃO revoga o refresh token no servidor,
+      //    então o celular continua logado normalmente.
+      const supabase = createClient();
+      await supabase.auth.signOut({ scope: 'local' });
     } catch {
       // segue mesmo com erro
     }

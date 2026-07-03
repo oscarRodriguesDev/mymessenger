@@ -53,7 +53,9 @@ export async function GET() {
 
 /**
  * DELETE /api/web/session
- * Encerra a sessão web do usuário atual (logout web)
+ * Encerra APENAS a sessão web do usuário atual (logout web).
+ * NÃO desloga do Supabase — isso é feito no cliente com scope:'local'.
+ * Assim o celular continua logado normalmente.
  */
 export async function DELETE() {
   try {
@@ -67,12 +69,8 @@ export async function DELETE() {
           get(name: string) {
             return cookieStore.get(name)?.value;
           },
-          set(name: string, value: string, options: CookieOptions) {
-            cookieStore.set({ name, value, ...options });
-          },
-          remove(name: string, options: CookieOptions) {
-            cookieStore.set({ name, value: '', ...options });
-          },
+          set() {},
+          remove() {},
         },
       }
     );
@@ -82,12 +80,9 @@ export async function DELETE() {
     } = await supabase.auth.getUser();
 
     if (user) {
-      // Remove sessão web do banco
+      // Remove APENAS a sessão web do banco — não revoga o token Supabase
       await webSessionService.deleteByAuthId(user.id);
     }
-
-    // Deslogar do Supabase
-    await supabase.auth.signOut();
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -34,6 +34,16 @@ Implementada aplicação web restrita para desktop (/web): (1) criado modelo Web
 
 ## BUG FIX (03/07/2026)
 
+### Problema 3: Logout na web deslogava o celular também
+- **Problema:** Ao clicar "Sair" na página `/web`, o usuário era deslogado do Supabase globalmente, derrubando também a sessão no celular.
+- **Causa raiz:** O DELETE handler de `/api/web/session` chamava `supabase.auth.signOut()` (scope `'global'`), que revoga o refresh token no servidor, invalidando a sessão em TODOS os dispositivos.
+- **Correção:** 
+  1. DELETE handler agora APENAS remove a WebSession do banco de dados, **sem chamar** `signOut()` 
+  2. A página `/web` chama `supabase.auth.signOut({ scope: 'local' })` no CLIENTE, que limpa os cookies do browser atual sem revogar o token no servidor
+  3. O celular continua logado normalmente enquanto a sessão web é encerrada apenas no desktop | AUTOR: VIBECODE
+
+## BUG FIX (03/07/2026)
+
 ### Problema 1: Middleware bloqueava APIs no desktop
 - **Problema:** Após escanear QR e exchange retornar 200, o frontend redirecionava para `/web#access_token=xxx` mas voltava para `/web-access` em loop.
 - **Causa raiz:** O middleware (`middleware.ts`) bloqueava TODAS as APIs no desktop exceto `/api/qr/*` e `/api/web/*`. Quando o `syncProfile()` chamava `POST /api/auth/sync`, o middleware retornava 403 (desktop + rota não permitida). Com `profile = null`, a página `/web` redirecionava de volta para `/web-access`.
