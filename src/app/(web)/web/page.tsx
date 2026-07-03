@@ -58,11 +58,11 @@ export default function WebPage() {
         // Timeout de segurança: se não processar em 5s, redireciona
         const timeout = setTimeout(() => {
           router.replace('/web-access');
-        }, 5000);
+        }, 20000);
         return () => clearTimeout(timeout);
       }
 
-      router.replace('/web-access');
+      router.replace('/web-access'); /* onde redireciona para web aqui? */
       return;
     }
 
@@ -95,7 +95,7 @@ export default function WebPage() {
       .then((data) => {
         if (!cancelled) setConversations(data);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => {
         if (!cancelled) setLoadingConversations(false);
       });
@@ -248,9 +248,8 @@ export default function WebPage() {
                 <button
                   key={conv.id}
                   onClick={() => setSelectedConversationId(conv.id)}
-                  className={`flex w-full items-center gap-3 border-b border-border/50 p-3 text-left transition-colors hover:bg-secondary/30 ${
-                    isSelected ? 'bg-primary/5' : ''
-                  }`}
+                  className={`flex w-full items-center gap-3 border-b border-border/50 p-3 text-left transition-colors hover:bg-secondary/30 ${isSelected ? 'bg-primary/5' : ''
+                    }`}
                 >
                   <Avatar
                     src={getConversationAvatar(conv)}

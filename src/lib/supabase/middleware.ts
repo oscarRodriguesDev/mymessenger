@@ -39,7 +39,7 @@ export async function updateSession(request: NextRequest) {
   // ───────────────────────────────────────────────────────────────
   if (pathname.startsWith('/api/')) {
     const isAllowedApi =
-      pathname.startsWith('/api/qr/') || pathname.startsWith('/api/web/') || pathname.startsWith('/web/');
+      pathname.startsWith('/api/qr/') || pathname.startsWith('/api/web/');
 
     if (isDesktop && !isAllowedApi) {
       return NextResponse.json(
