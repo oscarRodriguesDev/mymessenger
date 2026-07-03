@@ -28,5 +28,6 @@ Corrigido leitor de QR code na página /scan-qr: (1) scanner agora inicia APENAS
 - **Branch a usar daqui em diante:** `vibecode`
 - **Branch obsoleta (não usar mais):** `v0/melhoria-visual-da-aplicacao-d7f71782`
 - Todo código deve ser mantido atualizado na branch `vibecode` | AUTOR: USUARIO
+- **Commits:** Só commitar alterações quando o usuário pedir **expressamente**. Não commitar automaticamente ao finalizar tarefas. | AUTOR: USUARIO
 
 Implementada aplicação web restrita para desktop (/web): (1) criado modelo WebSession no Prisma com expiração de 7 dias; (2) criado web-session.service.ts para gerenciar sessões; (3) criada página /web com chat restrito (apenas envio/recebimento de mensagens) e layout desktop otimizado; (4) QR exchange agora cria WebSession e redireciona magic link para /web em vez de /chat; (5) middleware atualizado: desktop não logado → /web-access, desktop logado → /web, mobile bloqueado de /web; (6) DesktopRestriction atualizado para permitir /web; (7) criada API GET/DELETE /api/web/session para verificar e encerrar sessão web. | AUTOR: VIBECODE

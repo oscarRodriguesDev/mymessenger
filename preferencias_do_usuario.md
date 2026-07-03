@@ -6,3 +6,9 @@
 - **Branch obsoleta (NÃO USAR):** `v0/melhoria-visual-da-aplicacao-d7f71782`
 - Todo código deve ser mantido atualizado na branch `vibecode`
 - Commits devem ser enviados para local e remoto na branch `vibecode`
+
+## Política de Commits
+
+- **Só commitar quando o usuário pedir expressamente**
+- Não commitar automaticamente ao finalizar tarefas
+- Aguardar autorização explícita do usuário para qualquer commit
