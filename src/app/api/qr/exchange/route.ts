@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { qrAuthService, webSessionService } from '@/services';
 import { userService } from '@/services';
 
@@ -147,56 +145,64 @@ export async function POST(request: Request) {
     // 4) Marcar sessão QR como expirada
     await qrAuthService.expireSession(session.id);
 
-    // 5) Construir resposta e usar Supabase SSR para setar cookies
+    // 5) Construir resposta e definir cookie de sessão manualmente
     const response = NextResponse.json({
       redirectTo: '/web',
       email: profile.email,
     });
 
-    const cookieStore = await cookies();
-
     // Determinar se a conexão é segura (produção com HTTPS)
     const isSecure =
       request.url.startsWith('https://') || process.env.NODE_ENV === 'production';
 
-    const supabase = createServerClient(supabaseUrl, anonKey, {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value ?? null;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          response.cookies.set(name, value, {
-            ...options,
-            // Não forçar httpOnly — o cliente (createBrowserClient) precisa
-            // ler os cookies via document.cookie para autenticar o usuário.
-            // O default da biblioteca é httpOnly: false.
-            secure: isSecure,
-            path: '/',
-          });
-        },
-        remove(name: string, options: CookieOptions) {
-          response.cookies.set(name, '', {
-            ...options,
-            maxAge: 0,
-            path: '/',
-            secure: isSecure,
-          });
-        },
-      },
-    });
+    // ── Buscar dados do usuário a partir do access_token ──
+    const { data: { user: sessionUser }, error: userError } =
+      await supabaseAdmin.auth.getUser(accessToken);
 
-    const { error: setSessionError } = await supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken,
-    });
-
-    if (setSessionError) {
-      console.error('Set session error:', setSessionError);
+    if (userError || !sessionUser) {
+      console.error('Get user error:', userError);
       return NextResponse.json(
-        { error: 'Erro ao configurar sessão' },
+        { error: 'Token de acesso inválido' },
         { status: 500 }
       );
     }
+
+    // ── Calcular expiração ──
+    // Usar expires_at do hash se disponível, senão 1 hora a partir de agora
+    const expiresAtStr = hashParams.get('expires_at');
+    const expiresInStr = hashParams.get('expires_in');
+    const expiresAt = expiresAtStr
+      ? parseInt(expiresAtStr, 10)
+      : Math.floor(Date.now() / 1000) + (expiresInStr ? parseInt(expiresInStr, 10) : 3600);
+
+    // ── Montar objeto de sessão no formato que o gotrue-js espera ──
+    const authSession = {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      token_type: 'bearer',
+      expires_in: expiresAt - Math.floor(Date.now() / 1000),
+      expires_at: expiresAt,
+      user: sessionUser,
+    };
+
+    // ── Codificar no formato que @supabase/ssr espera ──
+    // Formato: base64-<base64url(sessionJSON)>
+    // O cookie é armazenado como 'supabase.auth.token' (chunked se > 3180 chars)
+    const sessionJSON = JSON.stringify(authSession);
+    const BASE64_PREFIX = 'base64-';
+
+    // Usar Buffer do Node.js para base64url (compatível com a lib @supabase/ssr)
+    const base64url = Buffer.from(sessionJSON, 'utf-8').toString('base64url');
+    const cookieValue = BASE64_PREFIX + base64url;
+
+    // Se o valor couber em um único cookie (< 3180 bytes decodificados), não chunk
+    response.cookies.set('supabase.auth.token', cookieValue, {
+      path: '/',
+      sameSite: 'lax',
+      httpOnly: false,
+      secure: isSecure,
+      maxAge: 7 * 24 * 60 * 60, // 7 dias
+    });
 
     return response;
   } catch (error) {
