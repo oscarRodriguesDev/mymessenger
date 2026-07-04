@@ -8,7 +8,7 @@ interface AudioRecorderProps {
   disabled?: boolean;
 }
 
-type RecorderState = 'idle' | 'recording' | 'preview' | 'unsupported';
+type RecorderState = 'idle' | 'recording' | 'preview' | 'error';
 
 const WAVEFORM_BARS = 32;
 const BAR_HEIGHTS = [4, 8, 12, 16, 20, 24, 28, 32, 36, 40];
@@ -108,13 +108,13 @@ export function AudioRecorder({ onSend, disabled = false }: AudioRecorderProps) 
   const startRecording = useCallback(async () => {
     if (disabled) return;
 
-    // Verifica se MediaRecorder é suportado
-    if (typeof MediaRecorder === 'undefined') {
-      setState('unsupported');
-      return;
-    }
-
     try {
+      // Verifica se MediaRecorder existe
+      if (typeof MediaRecorder === 'undefined') {
+        setState('error');
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
@@ -152,18 +152,12 @@ export function AudioRecorder({ onSend, disabled = false }: AudioRecorderProps) 
       timerRef.current = setInterval(() => {
         setElapsed(Math.floor((Date.now() - startTime) / 1000));
       }, 200);
-    } catch (err) {
-      const error = err as DOMException;
-      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        // Permissão negada — mostra unsupported para feedback visual
-        setState('unsupported');
-      } else if (error.name === 'NotFoundError') {
-        // Nenhum microfone encontrado
-        setState('unsupported');
-      } else {
-        // Outro erro — marca como não suportado (ex: WebView sem suporte a getUserMedia)
-        setState('unsupported');
-      }
+    } catch {
+      // Erro ao acessar microfone — mostra erro temporário e volta ao normal
+      setState('error');
+      setTimeout(() => {
+        setState('idle');
+      }, 2000);
     }
   }, [disabled, getSupportedMimeType]);
 
@@ -210,14 +204,11 @@ export function AudioRecorder({ onSend, disabled = false }: AudioRecorderProps) 
 
   return (
     <div className="flex items-center gap-2 rounded-lg bg-black/50 px-3 py-2 backdrop-blur-sm">
-      {/* Unsupported — mostra que áudio não está disponível */}
-      {state === 'unsupported' && (
-        <div
-          className="flex items-center gap-2 text-xs text-white/50"
-          title="Gravação de áudio não disponível neste dispositivo"
-        >
-          <HiMicrophone className="h-4 w-4 opacity-40" />
-          <span>Áudio indisponível</span>
+      {/* Error — feedback rápido de erro no microfone */}
+      {state === 'error' && (
+        <div className="flex items-center gap-2 text-xs text-red-400">
+          <HiMicrophone className="h-4 w-4" />
+          <span>Microfone indisponível</span>
         </div>
       )}
 
