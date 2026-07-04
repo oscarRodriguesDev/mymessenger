@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { ChatArea } from '@/features/chat/components/ChatArea';
 import { usePresence } from '@/hooks/usePresence';
-import VibeButton from '@/components/VibeButton';
 import { CircleBadge } from '@/features/groups/CircleBadge';
 
 interface Member {
@@ -149,14 +148,6 @@ export default function ChatPage() {
               </p>
             )}
           </div>
-          {/* #21: Botão de Vibe */}
-          {selectedConversation && (
-            <VibeButton
-              receiverId={selectedConversation.members.find(m => m.id !== profile?.id)?.id || ''}
-              conversationId={selectedConversation.id}
-              dropdownUp={false}
-            />
-          )}
         </header>
         <ChatArea
           conversationId={selectedConversationId}

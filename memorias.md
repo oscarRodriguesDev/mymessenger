@@ -28,6 +28,9 @@ Corrigido leitor de QR code na página /scan-qr: (1) scanner agora inicia APENAS
 - **Branch a usar daqui em diante:** `vibecode`
 - **Branch obsoleta (não usar mais):** `v0/melhoria-visual-da-aplicacao-d7f71782`
 - Todo código deve ser mantido atualizado na branch `vibecode` | AUTOR: USUARIO
+
+VibeButton removido do header do chat (chat/page.tsx) — agora o Vibe só existe dentro do menu de clipe no input de mensagens. | AUTOR: VIBECODE
+AudioRecorder adaptado para WebView: (1) detecção de suporte a MediaRecorder; (2) fallback automático entre mimeTypes (audio/webm → audio/ogg → audio/mp4 → audio/mpeg → vazio); (3) blob usa o mimeType real do recorder; (4) tratamento de erros específico (NotAllowedError, NotFoundError); (5) estado "unsupported" com feedback visual "Áudio indisponível" quando o dispositivo não suporta gravação. | AUTOR: VIBECODE
 - **Commits:** Só commitar alterações quando o usuário pedir **expressamente**. Não commitar automaticamente ao finalizar tarefas. | AUTOR: USUARIO
 - **Arquitetura mobile:** Já existe um aplicativo nativo que instancia uma WebView carregando a URL da aplicação Next.js. Este é o formato atual e não há planos confirmados de migrar para React Native/Flutter nativo puro — isso só aconteceria se surgir necessidade futura. | AUTOR: USUARIO
 

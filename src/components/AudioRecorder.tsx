@@ -8,7 +8,7 @@ interface AudioRecorderProps {
   disabled?: boolean;
 }
 
-type RecorderState = 'idle' | 'recording' | 'preview';
+type RecorderState = 'idle' | 'recording' | 'preview' | 'unsupported';
 
 const WAVEFORM_BARS = 32;
 const BAR_HEIGHTS = [4, 8, 12, 16, 20, 24, 28, 32, 36, 40];
@@ -87,16 +87,47 @@ export function AudioRecorder({ onSend, disabled = false }: AudioRecorderProps) 
     chunksRef.current = [];
   }, [audioUrl]);
 
+  // Detecta o melhor mimeType disponível para WebView/browser
+  const getSupportedMimeType = useCallback((): string => {
+    const types = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg;codecs=opus',
+      'audio/mp4',
+      'audio/mpeg',
+      '',
+    ];
+    for (const type of types) {
+      if (type === '' || MediaRecorder.isTypeSupported(type)) {
+        return type;
+      }
+    }
+    return '';
+  }, []);
+
   const startRecording = useCallback(async () => {
     if (disabled) return;
+
+    // Verifica se MediaRecorder é suportado
+    if (typeof MediaRecorder === 'undefined') {
+      setState('unsupported');
+      return;
+    }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      const mimeType = getSupportedMimeType();
+      const options: MediaRecorderOptions = {};
+      if (mimeType) options.mimeType = mimeType;
+
+      const recorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
+
+      // Usa o mimeType real suportado pelo browser/WebView
+      const recordedType = mimeType || recorder.mimeType || 'audio/webm';
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
@@ -105,7 +136,7 @@ export function AudioRecorder({ onSend, disabled = false }: AudioRecorderProps) 
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const blob = new Blob(chunksRef.current, { type: recordedType });
         const url = URL.createObjectURL(blob);
         setAudioBlob(blob);
         setAudioUrl(url);
@@ -121,11 +152,20 @@ export function AudioRecorder({ onSend, disabled = false }: AudioRecorderProps) 
       timerRef.current = setInterval(() => {
         setElapsed(Math.floor((Date.now() - startTime) / 1000));
       }, 200);
-    } catch {
-      // Permission denied or no mic available — silently fail
-      setState('idle');
+    } catch (err) {
+      const error = err as DOMException;
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        // Permissão negada — mostra unsupported para feedback visual
+        setState('unsupported');
+      } else if (error.name === 'NotFoundError') {
+        // Nenhum microfone encontrado
+        setState('unsupported');
+      } else {
+        // Outro erro — marca como não suportado (ex: WebView sem suporte a getUserMedia)
+        setState('unsupported');
+      }
     }
-  }, [disabled]);
+  }, [disabled, getSupportedMimeType]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -170,6 +210,17 @@ export function AudioRecorder({ onSend, disabled = false }: AudioRecorderProps) 
 
   return (
     <div className="flex items-center gap-2 rounded-lg bg-black/50 px-3 py-2 backdrop-blur-sm">
+      {/* Unsupported — mostra que áudio não está disponível */}
+      {state === 'unsupported' && (
+        <div
+          className="flex items-center gap-2 text-xs text-white/50"
+          title="Gravação de áudio não disponível neste dispositivo"
+        >
+          <HiMicrophone className="h-4 w-4 opacity-40" />
+          <span>Áudio indisponível</span>
+        </div>
+      )}
+
       {/* Idle — mic button */}
       {state === 'idle' && (
         <button
