@@ -187,9 +187,14 @@ export function AudioRecorder({ onSend, disabled = false }: AudioRecorderProps) 
     setSending(true);
     try {
       await onSend(audioBlob);
+      // Só limpa se o envio foi bem-sucedido
       cleanupMedia();
       setAudioBlob(null);
       setState('idle');
+    } catch {
+      // Erro já foi tratado pelo ChatArea (setAudioError)
+      // Não limpa o estado — mantém preview para tentar novamente
+      console.warn('AudioRecorder: send failed, keeping preview');
     } finally {
       setSending(false);
     }

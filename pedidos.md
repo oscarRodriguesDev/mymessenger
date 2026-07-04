@@ -53,4 +53,21 @@
 - VibeButton removido do header ✅
 - AudioRecorder adaptado para WebView (fallback mimeType, sem bloqueio) ✅
 - Build passando (36 páginas, ~31 rotas API) ✅
-- 🚨 Bloqueadores: VibeService cache (restart `npm run dev`) + Storage RLS (executar SQL)
+- 🚨 Bloqueadores: Storage RLS (executar SQL no Supabase Dashboard)
+
+---
+
+## 04/07/2026 - Correção envio de áudio (Next.js)
+
+**Problema:** Áudio gravava mas não era enviado — upload falhava silenciosamente e AudioRecorder limpava o estado como se tivesse dado certo.
+
+**Causas:**
+1. `audio/webm;codecs=opus` (desktop) e `audio/mp4` (iOS/WebView) não estavam na whitelist da API de upload
+2. `handleAudioSend()` no ChatArea não propagava erros — retornava sem rejeitar Promise
+
+**Correções:**
+- API de upload: adicionados mimeTypes faltantes + normalização (remove codecs)
+- ChatArea: `handleAudioSend` lança erro e mostra feedback visual
+- AudioRecorder: mantém preview se enviar falhar (não limpa estado)
+
+**Status:** ✅ Corrigido e build validado

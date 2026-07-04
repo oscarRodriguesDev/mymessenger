@@ -294,3 +294,25 @@ src/features/groups/CreateCircleModal.tsx
 
 ### Build:
 ✅ 36 pages + ~31 API routes. Compilado com sucesso. | AUTOR: VIBECODE
+
+## Fix Áudio - Envio não finalizava (04/07/2026)
+
+### Problemas identificados:
+1. **API de upload não aceitava mimeTypes de áudio comuns no WebView/browser** — `audio/webm;codecs=opus` (desktop Chrome) e `audio/mp4` (iOS Safari/WebView) não estavam na lista de tipos suportados, causando rejeição silenciosa do upload.
+2. **handleAudioSend engolia erros** — Quando upload ou envio falhava, a função retornava sem rejeitar a Promise. O AudioRecorder interpretava como sucesso, limpava o estado (preview → idle) e o usuário nunca via o erro.
+
+### Correções aplicadas:
+1. **`src/app/api/upload/message-media/route.ts`** — Adicionados mimeTypes: `audio/webm;codecs=opus`, `audio/mp4`, `audio/mpeg`, `audio/x-m4a`. Adicionada normalização que remove `;codecs=...` para match mais flexível.
+2. **`src/features/chat/components/ChatArea.tsx`** — `handleAudioSend` agora:
+   - Lança erro (`throw new Error()`) quando upload ou POST da mensagem falha
+   - Extrai mensagem de erro do body da resposta
+   - Define `audioError` state com a mensagem para feedback visual
+   - Propaga o erro para o AudioRecorder (`throw err`)
+3. **`src/components/AudioRecorder.tsx`** — `handleSend` captura erro no `catch` e **não limpa o estado** (mantém preview), permitindo ao usuário tentar novamente.
+4. **`src/features/chat/components/ChatArea.tsx`** — Adicionado `audioError` state + feedback visual (div vermelha com mensagem) acima do AudioRecorder. Estado `audioError` é limpo quando `showAudioRecorder` fecha.
+
+### Status:
+- ✅ Audio upload aceita todos os mimeTypes gerados pelo AudioRecorder
+- ✅ Erros são visíveis para o usuário (não mais silenciosos)
+- ✅ Preview do áudio permanece na tela se falhar (pode tentar reenviar)
+- ✅ Build validado (36 pages, sem erros) | AUTOR: VIBECODE

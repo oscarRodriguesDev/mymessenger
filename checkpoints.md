@@ -442,5 +442,28 @@ Todos os **8 requisitos P1** (camada de diferenciação) foram implementados e i
    - `npm run dev` restart para limpar cache do VibeService
    - Executar `supabase/storage_policies.sql` no Supabase Dashboard (upload de mídia)
 
+---
+
+## 04/07/2026 - Correção envio de áudio (Next.js) + Permissões React Native
+
+### O que foi feito
+
+**React Native (usuário):**
+- Correção em `components/webview-screen.tsx`:
+  - `onPermissionRequest` (Android, linha 168): intercepta requisições de permissão do JS (getUserMedia) e concede automaticamente
+  - `mediaCapturePermissionGrantType="grant"` (iOS, linha 169): concede permissões de mídia no WKWebView sem prompt nativo
+  - JS pre-warmer (linhas 111-120): chama `getUserMedia({ audio: true })` ao carregar para aquecer o pipeline
+
+**Next.js (VIBECODE):**
+- **API upload:** Adicionados mimeTypes `audio/webm;codecs=opus`, `audio/mp4`, `audio/mpeg`, `audio/x-m4a` + normalização que remove codecs para match flexível
+- **ChatArea.handleAudioSend:** Agora lança erro quando upload/POST falha (antes engolia e retornava sucesso). Adicionado `audioError` state com feedback visual vermelho
+- **AudioRecorder.handleSend:** Captura erro e **mantém preview** (não limpa estado) para permitir reenvio
+- **Arquivos:** `message-media/route.ts`, `ChatArea.tsx`, `AudioRecorder.tsx`
+
+### Pendências atualizadas
+1. ✅ Áudio — envio não finalizava → **CORRIGIDO** (mimeTypes + propagação de erros)
+2. ✅ Áudio — não funcionava no celular → **CORRIGIDO** (permissões React Native)
+3. 🔴 Bloqueador: Executar `supabase/storage_policies.sql` no Supabase Dashboard
+
 ### Branch
 - `vibecode` — sem novos commits (aguardando autorização do usuário)

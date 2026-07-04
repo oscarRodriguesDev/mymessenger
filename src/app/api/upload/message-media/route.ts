@@ -28,10 +28,18 @@ export async function POST(request: Request) {
       'image/jpeg', 'image/png', 'image/gif', 'image/webp',
       'video/mp4', 'video/webm',
       'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/webm',
+      'audio/webm;codecs=opus', 'audio/mp4', 'audio/mpeg', 'audio/x-m4a',
       'application/pdf',
     ];
 
-    if (!supportedTypes.includes(file.type)) {
+    // Normalizar mimeType: remove codecs para match mais flexível
+    const normalizeMime = (t: string) => t.split(';')[0].trim();
+    const fileBaseType = normalizeMime(file.type);
+    const isSupported = supportedTypes.some(supported =>
+      normalizeMime(supported) === fileBaseType || supported === file.type
+    );
+
+    if (!isSupported) {
       return NextResponse.json(
         { error: `Unsupported file type: ${file.type}` },
         { status: 400 }

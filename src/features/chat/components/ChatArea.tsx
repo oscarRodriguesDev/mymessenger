@@ -130,6 +130,13 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
     enabled: typingIndicatorEnabled,
   });
 
+  // Limpa erro de áudio quando o recorder é fechado
+  useEffect(() => {
+    if (!showAudioRecorder) {
+      setAudioError(null);
+    }
+  }, [showAudioRecorder]);
+
   // Item 19: Toggle reação
   const toggleReaction = useCallback(async (messageId: string, emoji: string) => {
     try {
@@ -247,8 +254,11 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
   }, [conversationId, currentUserId, members]);
 
   // Item 18: Envio de áudio gravado
+  const [audioError, setAudioError] = useState<string | null>(null);
+
   const handleAudioSend = useCallback(async (audioBlob: Blob) => {
     setUploadingFile(true);
+    setAudioError(null);
     try {
       const formData = new FormData();
       formData.append('file', audioBlob, `audio-${Date.now()}.webm`);
@@ -259,8 +269,8 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
       });
 
       if (!uploadRes.ok) {
-        console.error('Audio upload failed');
-        return;
+        const errBody = await uploadRes.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(errBody.error || 'Erro ao fazer upload do áudio');
       }
 
       const mediaData = await uploadRes.json();
@@ -310,14 +320,14 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
         ));
         setShowAudioRecorder(false);
       } else {
-        setMessages(prev => prev.map(msg =>
-          msg.id === optimisticId
-            ? { ...msg, status: MessageStatus.nao_enviada }
-            : msg
-        ));
+        const errBody = await res.json().catch(() => ({ error: 'Erro ao enviar mensagem' }));
+        throw new Error(errBody.error || 'Erro ao enviar mensagem de áudio');
       }
-    } catch {
-      console.error('Audio send failed');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao enviar áudio';
+      console.error('Audio send failed:', msg);
+      setAudioError(msg);
+      throw err; // Propaga para o AudioRecorder saber que falhou
     } finally {
       setUploadingFile(false);
     }
@@ -875,6 +885,11 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
             {/* Audio Recorder (substitui o input quando ativo) */}
             {showAudioRecorder ? (
               <div className="flex-1 min-w-0">
+                {audioError && (
+                  <div className="mb-1 rounded bg-red-500/10 px-2 py-1 text-xs text-red-400">
+                    {audioError}
+                  </div>
+                )}
                 <AudioRecorder onSend={handleAudioSend} disabled={sending || uploadingFile} />
               </div>
             ) : (
