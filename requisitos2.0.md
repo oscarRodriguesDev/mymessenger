@@ -19,21 +19,21 @@
 
 ## P0 — Núcleo do Sistema (sem isso não existe produto)
 
-| #   | Requisito                                       | Status | Detalhes                                                                                                                      |
-| --- | ----------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Conta por username único                        | ✅     | `User.username` é unique. Registro com username + signUp.                                                                     |
-| 2   | Email opcional (recuperação)                    | ✅     | Email usado como login/recuperação via Supabase Auth.                                                                         |
-| 3   | Perfil simples (foto, nome)                     | ✅     | `fullName`, `avatarUrl`, `bio`. Página de settings completa com edição.                                                       |
-| 4   | Status de presença (online, ausente, invisível) | ✅     | Heartbeat REST + Realtime Presence + polling fallback. Indicador visual no avatar. Thresholds: <90s online, <5min idle.        |
-| 5   | Sistema seguir/adicionar                        | ✅     | FollowService completo: seguir, aceitar, rejeitar, amigos mútuos, seguidores, seguindo.                                       |
-| 6   | Solicitação por username                        | ✅     | `GET /api/users/search?q=` com debounce 300ms. Exibe status do follow.                                                        |
-| 7   | Bloqueio e restrição                            | 🔶     | Modelo `BlockedUser` existe. Backend de follow já exclui bloqueados. **Sem endpoint nem frontend para bloquear/desbloquear.** |
-| 8   | Conversas 1:1                                   | ✅     | Criação automática ao enviar primeira mensagem.                                                                               |
-| 9   | Grupos básicos                                  | ✅     | API completa + frontend de criação de grupos. Admin pode adicionar/remover membros.                                           |
-| 10  | Confirmação de leitura opcional                 | ✅     | Toggle em Settings > Privacidade. Backend respeita `readReceiptEnabled` ao marcar como lida.                                  |
-| 11  | Indicador de digitação opcional                 | ✅     | Realtime Broadcast + toggle em Settings > Privacidade. Animação "fulano está digitando..." com dots pulsando.                  |
-| 12  | Infraestrutura em tempo real (WebSocket)        | ✅     | Supabase Realtime (PostgreSQL LISTEN/NOTIFY + Broadcast).                                                                     |
-| 13  | Garantia de entrega + deduplicação              | ✅     | `clientMessageId` único por sender. Servidor retorna 200 com mensagem existente se detectar duplicata. Retry no frontend.     |
+| #   | Requisito                                       | Status | Detalhes                                                                                                                  |
+| --- | ----------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Conta por username único                        | ✅     | `User.username` é unique. Registro com username + signUp.                                                                 |
+| 2   | Email opcional (recuperação)                    | ✅     | Email usado como login/recuperação via Supabase Auth.                                                                     |
+| 3   | Perfil simples (foto, nome)                     | ✅     | `fullName`, `avatarUrl`, `bio`. Página de settings completa com edição.                                                   |
+| 4   | Status de presença (online, ausente, invisível) | ✅     | Heartbeat REST + Realtime Presence + polling fallback. Indicador visual no avatar. Thresholds: <90s online, <5min idle.   |
+| 5   | Sistema seguir/adicionar                        | ✅     | FollowService completo: seguir, aceitar, rejeitar, amigos mútuos, seguidores, seguindo.                                   |
+| 6   | Solicitação por username                        | ✅     | `GET /api/users/search?q=` com debounce 300ms. Exibe status do follow.                                                    |
+| 7   | Bloqueio e restrição                            | 🔶     | Modelo `BlockedUser` vamos implementar no futuro\*\*                                                                      |
+| 8   | Conversas 1:1                                   | ✅     | Criação automática ao enviar primeira mensagem.                                                                           |
+| 9   | Grupos básicos                                  | ✅     | API completa + frontend de criação de grupos. Admin pode adicionar/remover membros.                                       |
+| 10  | Confirmação de leitura opcional                 | ✅     | Toggle em Settings > Privacidade. Backend respeita `readReceiptEnabled` ao marcar como lida.                              |
+| 11  | Indicador de digitação opcional                 | ✅     | Realtime Broadcast + toggle em Settings > Privacidade. Animação "fulano está digitando..." com dots pulsando.             |
+| 12  | Infraestrutura em tempo real (WebSocket)        | ✅     | Supabase Realtime (PostgreSQL LISTEN/NOTIFY + Broadcast).                                                                 |
+| 13  | Garantia de entrega + deduplicação              | ✅     | `clientMessageId` único por sender. Servidor retorna 200 com mensagem existente se detectar duplicata. Retry no frontend. |
 
 ### Itens P0 — Resumo
 
@@ -45,16 +45,16 @@
 
 ## P1 — Camada de Comportamento Jovem (diferenciação real)
 
-| #   | Requisito                                 | Status | Detalhes                                                                      |
-| --- | ----------------------------------------- | ------ | ----------------------------------------------------------------------------- |
-| 14  | Mensagens efêmeras (TTL configurável)     | ✅    | Worker `POST /api/expire-messages` + UI seletor TTL no envio (1min-24h). `Message.expiresAt` usado no create. |
-| 15  | Modo conversa efêmera por chat            | ✅    | Worker `POST /api/expire-conversations` + `Conversation.isEphemeral` + `defaultTTL`. Círculos usam isso. |
-| 16  | Mídia com expiração automática            | ✅    | Mídias enviadas em chats efêmeros/herdam TTL da mensagem. Workers limpam mídias expiradas. |
-| 17  | Círculos (grupos leves, temporários)      | ✅    | API completa (`/api/circles/*`). CircleBadge com timer regressivo + CreateCircleModal com seletor TTL. Sem admin rígido. |
-| 18  | Áudios curtos como padrão                 | ✅    | AudioRecorder (MediaRecorder + waveform + preview) + AudioMessage player inline. Upload via `/api/upload/message-media`. |
-| 19  | Reações rápidas (emoji)                   | ✅    | API `POST/GET /api/messages/[messageId]/reactions` + ReactionPicker (hover) + MessageReactions (exibição). |
-| 20  | Resposta com mídia (imagem, áudio, vídeo) | ✅    | Upload `/api/upload/message-media`. Componentes: ImageMessage (lightbox), VideoMessage (player), AudioMessage, FileMessage (download). |
-| 21  | Sinais "vibe" (interações não textuais)   | ✅    | API `POST /api/vibe` + `GET /api/vibe/pending`. VibeButton (5 tipos) + VibeNotification (toast com retribuir). |
+| #   | Requisito                                 | Status | Detalhes                                                                                                                               |
+| --- | ----------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 14  | Mensagens efêmeras (TTL configurável)     | ✅     | Worker `POST /api/expire-messages` + UI seletor TTL no envio (1min-24h). `Message.expiresAt` usado no create.                          |
+| 15  | Modo conversa efêmera por chat            | ✅     | Worker `POST /api/expire-conversations` + `Conversation.isEphemeral` + `defaultTTL`. Círculos usam isso.                               |
+| 16  | Mídia com expiração automática            | ✅     | Mídias enviadas em chats efêmeros/herdam TTL da mensagem. Workers limpam mídias expiradas.                                             |
+| 17  | Círculos (grupos leves, temporários)      | ✅     | API completa (`/api/circles/*`). CircleBadge com timer regressivo + CreateCircleModal com seletor TTL. Sem admin rígido.               |
+| 18  | Áudios curtos como padrão                 | ✅     | AudioRecorder (MediaRecorder + waveform + preview) + AudioMessage player inline. Upload via `/api/upload/message-media`.               |
+| 19  | Reações rápidas (emoji)                   | ✅     | API `POST/GET /api/messages/[messageId]/reactions` + ReactionPicker (hover) + MessageReactions (exibição).                             |
+| 20  | Resposta com mídia (imagem, áudio, vídeo) | ✅     | Upload `/api/upload/message-media`. Componentes: ImageMessage (lightbox), VideoMessage (player), AudioMessage, FileMessage (download). |
+| 21  | Sinais "vibe" (interações não textuais)   | ✅     | API `POST /api/vibe` + `GET /api/vibe/pending`. VibeButton (5 tipos) + VibeNotification (toast com retribuir).                         |
 
 ### Itens P1 — Resumo
 
