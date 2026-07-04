@@ -30,3 +30,27 @@
 - `src/services/index.ts` (export circleService)
 
 **Status:** ✅ Implementado e build validado (erro pré-existente em reactions/route.ts)
+
+---
+
+## 03/07/2026 - Pendências para 04/07/2026
+
+**Solicitação:** "Anotar que amanhã temos que ver."
+
+### 🎯 Tarefas pendentes
+
+1. **Áudio - Envio não finalizou no browser**
+   - Microfone funcionou (conseguiu gravar), mas o envio do áudio não completou
+   - Verificar o fluxo `handleSend` no `AudioRecorder` → `onSend` → `ChatArea`
+   - Possível causa: blob mal formado, erro na API de upload, ou callback não executando
+
+2. **Áudio não funciona no celular (WebView React Native)**
+   - Amanhã vamos analisar o app React Native
+   - Provável solução: configurar `react-native-webrtc` ou injetar polyfill de `getUserMedia` na WebView
+   - Verificar permissões e configuração da WebView nativa
+
+### Contexto atual
+- VibeButton removido do header ✅
+- AudioRecorder adaptado para WebView (fallback mimeType, sem bloqueio) ✅
+- Build passando (36 páginas, ~31 rotas API) ✅
+- 🚨 Bloqueadores: VibeService cache (restart `npm run dev`) + Storage RLS (executar SQL)

@@ -425,3 +425,22 @@ Todos os **8 requisitos P1** (camada de diferenciação) foram implementados e i
 - ✅ 36 pages + ~31 API routes
 - ✅ Compilado com sucesso
 - ✅ TypeScript check passou
+
+---
+
+## 03/07/2026 - Correções finais pré-MVP
+
+### Alterações realizadas
+1. **Vibe removido do header** do chat (`chat/page.tsx`) — agora só existe no menu do clipe
+2. **AudioRecorder simplificado** — sem bloqueio preventivo, botão sempre disponível, erro temporário de 2s se falhar
+3. **Fallback de mimeType** para WebView (`audio/webm` → `audio/ogg` → `audio/mp4` → `audio/mpeg`)
+
+### Pendências para 04/07/2026
+1. **🔴 Áudio — envio não finaliza** (funciona no browser mas não completa o send)
+2. **🔴 Áudio — não funciona no celular** (analisar app React Native WebView)
+3. **🔴 Bloqueadores**:
+   - `npm run dev` restart para limpar cache do VibeService
+   - Executar `supabase/storage_policies.sql` no Supabase Dashboard (upload de mídia)
+
+### Branch
+- `vibecode` — sem novos commits (aguardando autorização do usuário)
