@@ -5,13 +5,15 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
-import { GrFormClock, GrCheckmark, GrAttachment, GrDocument, GrImage, GrVideo, GrMusic } from "react-icons/gr";
-import { IoCheckmarkDoneSharp } from "react-icons/io5";
+import { GrFormClock, GrCheckmark, GrAttachment, GrDocument, GrImage, GrVideo, GrMusic, GrSend } from "react-icons/gr";
+import { IoCheckmarkDoneSharp, IoMicOutline, IoMicOffOutline } from "react-icons/io5";
+import { HiPaperAirplane } from "react-icons/hi";
 import { MessageStatus } from '@/features/chat/message-status';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { TypingIndicator } from '@/components/TypingIndicator';
 import { ReactionPicker } from '@/components/ReactionPicker';
 import { MessageReactions } from '@/components/MessageReactions';
+import { HiEmojiHappy } from 'react-icons/hi';
 import { ImageMessage } from '@/components/media/ImageMessage';
 import { VideoMessage } from '@/components/media/VideoMessage';
 import { AudioMessage } from '@/components/media/AudioMessage';
@@ -114,6 +116,8 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showTtlSelector, setShowTtlSelector] = useState(false);
   const [ttlSeconds, setTtlSeconds] = useState<number | null>(null);
+  const [showClipMenu, setShowClipMenu] = useState(false);
+  const [showVibePicker, setShowVibePicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const optimisticIdRef = useRef(0);
   const clientMsgIdRef = useRef(0);
@@ -685,11 +689,12 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
       </div>
 
       <TypingIndicator typingUserNames={typingUserNames} />
-      <form onSubmit={handleSend} className="border-t border-border bg-card/50 p-3 backdrop-blur-sm sm:p-4">
-        {/* #20: TTL Selector */}
+      <form onSubmit={handleSend} className="sticky bottom-0 z-10 border-t border-border bg-card/50 backdrop-blur-sm">
+
+        {/* #20: TTL Selector (acima da caixa de texto, quando ativo) */}
         {showTtlSelector && (
-          <div className="mb-2 flex items-center gap-2 px-1">
-            <span className="text-xs text-muted-foreground">⏱ Expirar em:</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 overflow-x-auto">
+            <span className="text-xs text-muted-foreground shrink-0">⏱ Expirar em:</span>
             {[60, 300, 1800, 3600, 86400].map(sec => {
               const label = sec < 60 ? `${sec}s` :
                 sec < 3600 ? `${sec / 60}min` :
@@ -700,7 +705,7 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
                   key={sec}
                   type="button"
                   onClick={() => setTtlSeconds(ttlSeconds === sec ? null : sec)}
-                  className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                  className={`shrink-0 px-2 py-0.5 text-xs rounded-full border transition-colors ${
                     ttlSeconds === sec
                       ? 'bg-primary text-primary-foreground border-primary'
                       : 'bg-secondary text-muted-foreground border-border hover:bg-secondary/80'
@@ -714,7 +719,7 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
               <button
                 type="button"
                 onClick={() => { setTtlSeconds(null); setShowTtlSelector(false); }}
-                className="px-2 py-1 text-xs text-red-400 hover:text-red-300"
+                className="shrink-0 px-2 py-0.5 text-xs text-red-400 hover:text-red-300"
               >
                 Limpar
               </button>
@@ -722,85 +727,186 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
           </div>
         )}
 
-        <div className="flex gap-2 px-1 sm:gap-3 sm:px-0">
-          {/* Botão de anexo (upload de mídia) */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.zip"
-            className="hidden"
-            onChange={handleFileSelect}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadingFile || showAudioRecorder}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40"
-            title="Anexar arquivo"
-          >
-            {uploadingFile ? (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            ) : (
-              <GrAttachment className="h-5 w-5" />
-            )}
-          </button>
+        {/* Caixa de texto unificada */}
+        <div className="flex items-center gap-1 px-2 pb-2 pt-1 sm:px-3 sm:pb-3">
+          <div className="flex flex-1 items-center gap-1 rounded-2xl bg-secondary/80 border border-border px-2 py-1 sm:px-3 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 transition-all duration-200 max-w-full">
 
-          {/* Botão de áudio */}
-          <button
-            type="button"
-            onClick={() => setShowAudioRecorder(!showAudioRecorder)}
-            disabled={uploadingFile}
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40 ${
-              showAudioRecorder
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-            }`}
-            title="Gravar áudio"
-          >
-            <GrMusic className="h-4 w-4" />
-          </button>
+            {/* Botão de clipe (abre menu de opções) */}
+            <div className="relative shrink-0">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.zip"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+              <button
+                type="button"
+                onClick={() => setShowClipMenu(!showClipMenu)}
+                disabled={uploadingFile || showAudioRecorder}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-background/50 hover:text-foreground transition-colors disabled:opacity-40"
+                title="Mais opções"
+              >
+                {uploadingFile ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                ) : (
+                  <GrAttachment className="h-5 w-5" />
+                )}
+              </button>
 
-          {/* Botão de TTL (mensagem efêmera) */}
-          <button
-            type="button"
-            onClick={() => setShowTtlSelector(!showTtlSelector)}
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
-              showTtlSelector || ttlSeconds
-                ? 'bg-yellow-500/20 text-yellow-500'
-                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-            }`}
-            title="Mensagem temporária"
-          >
-            <span className="text-sm">⏱</span>
-          </button>
-
-          {/* Audio Recorder (substitui o input quando ativo) */}
-          {showAudioRecorder ? (
-            <div className="flex-1">
-              <AudioRecorder onSend={handleAudioSend} disabled={sending || uploadingFile} />
+              {/* Dropdown do clipe - abre para CIMA e alinhado à ESQUERDA */}
+              {showClipMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => { setShowClipMenu(false); setShowVibePicker(false); }} />
+                  <div className="absolute bottom-full left-0 mb-2 z-50 max-w-[90vw]">
+                    <div className="bg-card border border-border rounded-xl shadow-xl p-1.5 min-w-[180px] max-w-[90vw]">
+                      {!showVibePicker ? (
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowClipMenu(false);
+                              fileInputRef.current?.click();
+                            }}
+                            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-foreground hover:bg-secondary rounded-lg transition-colors"
+                          >
+                            <span className="text-lg">📷</span>
+                            <span>Imagem</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowAudioRecorder(true);
+                              setShowClipMenu(false);
+                            }}
+                            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-foreground hover:bg-secondary rounded-lg transition-colors"
+                          >
+                            <IoMicOutline className="text-lg" />
+                            <span>Áudio</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled
+                            onClick={() => alert('🎥 Recurso de vídeo será disponibilizado em breve!')}
+                            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-foreground/40 hover:bg-secondary/50 rounded-lg transition-colors cursor-not-allowed"
+                            title="Em breve"
+                          >
+                            <span className="text-lg">🎥</span>
+                            <span>Vídeo</span>
+                            <span className="ml-auto text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full">Em breve</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowVibePicker(true)}
+                            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-foreground hover:bg-secondary rounded-lg transition-colors"
+                          >
+                            <HiEmojiHappy className="text-lg" />
+                            <span>Vibe</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowTtlSelector(!showTtlSelector);
+                              setShowClipMenu(false);
+                            }}
+                            className={`flex items-center gap-3 w-full px-3 py-2.5 text-sm rounded-lg transition-colors ${
+                              ttlSeconds ? 'text-yellow-500 bg-yellow-500/10' : 'text-foreground hover:bg-secondary'
+                            }`}
+                          >
+                            <span className="text-lg">⏱</span>
+                            <span>Temporário</span>
+                            {ttlSeconds && <span className="ml-auto text-[10px] text-yellow-500">Ativo</span>}
+                          </button>
+                        </div>
+                      ) : (
+                        /* Sub-menu de Vibe */
+                        <div>
+                          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border mb-1">
+                            <button
+                              type="button"
+                              onClick={() => setShowVibePicker(false)}
+                              className="text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                            </button>
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Enviar sinal</span>
+                          </div>
+                          <div className="flex gap-1 px-2 py-1 flex-wrap">
+                            {[
+                              { type: 'buzz' as const, emoji: '👋', label: 'Buzz' },
+                              { type: 'poke' as const, emoji: '🤏', label: 'Poke' },
+                              { type: 'wave' as const, emoji: '🖐️', label: 'Wave' },
+                              { type: 'heartbeat' as const, emoji: '💓', label: 'Heartbeat' },
+                              { type: 'fire' as const, emoji: '🔥', label: 'Fire' },
+                            ].map(item => (
+                              <button
+                                key={item.type}
+                                type="button"
+                                onClick={() => {
+                                  setShowClipMenu(false);
+                                  setShowVibePicker(false);
+                                  // Envia vibe via fetch
+                                  fetch('/api/vibe', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      receiverId: members.find(m => m.id !== currentUserId)?.id || '',
+                                      type: item.type,
+                                      conversationId,
+                                    }),
+                                  }).catch(() => {});
+                                }}
+                                className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg hover:bg-secondary transition-colors"
+                                title={item.label}
+                              >
+                                <span className="text-xl">{item.emoji}</span>
+                                <span className="text-[10px] text-muted-foreground">{item.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-          ) : (
-            <Input
-              id="message"
-              placeholder="Digite uma mensagem..."
-              value={newMessage}
-              onChange={(e) => {
-                setNewMessage(e.target.value);
-                setTyping(e.target.value.length > 0);
-              }}
-              onBlur={() => setTyping(false)}
-              disabled={sending || uploadingFile}
-              className="flex-1 text-sm sm:text-base"
-            />
-          )}
 
-          <Button
-            type="submit"
-            disabled={(!newMessage.trim() && !showAudioRecorder) || sending || uploadingFile}
-            className="px-4 sm:px-6 text-sm sm:text-base"
-          >
-            {sending ? '...' : 'Enviar'}
-          </Button>
+            {/* Audio Recorder (substitui o input quando ativo) */}
+            {showAudioRecorder ? (
+              <div className="flex-1 min-w-0">
+                <AudioRecorder onSend={handleAudioSend} disabled={sending || uploadingFile} />
+              </div>
+            ) : (
+              <input
+                id="message"
+                type="text"
+                placeholder="Digite uma mensagem..."
+                value={newMessage}
+                onChange={(e) => {
+                  setNewMessage(e.target.value);
+                  setTyping(e.target.value.length > 0);
+                }}
+                onBlur={() => setTyping(false)}
+                disabled={sending || uploadingFile}
+                className="flex-1 min-w-0 bg-transparent text-sm sm:text-base text-foreground placeholder:text-muted-foreground border-0 outline-none focus:outline-none focus:ring-0 px-1 py-1.5"
+              />
+            )}
+
+            {/* Botão de enviar (setinha) - sempre visível */}
+            <button
+              type="submit"
+              disabled={(!newMessage.trim() && !showAudioRecorder) || sending || uploadingFile}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+              title="Enviar"
+            >
+              {sending ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              ) : (
+                <HiPaperAirplane className="h-4 w-4 rotate-90" />
+              )}
+            </button>
+          </div>
         </div>
       </form>
     </div>
