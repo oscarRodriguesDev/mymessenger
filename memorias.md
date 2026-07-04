@@ -62,6 +62,21 @@ Implementada aplicação web restrita para desktop (/web): (1) criado modelo Web
   4. Mantém singleton pattern igual ao original
 - **Arquivo modificado:** `src/lib/supabase/client.ts` (reescrito completamente) | AUTOR: VIBECODE
 
+## Sistema de Círculos (Grupos Temporários) - (03/07/2026)
+Implementado sistema de Círculos — grupos temporários sem admin fixo, baseados nos campos `isEphemeral` e `defaultTTL` da Conversation.
+
+**Arquivos criados:**
+1. `src/services/circle.service.ts` — Serviço com métodos: create, addMember, removeMember, getUserCircles, isMember, extendTTL. Todos os membros têm role 'member'.
+2. `src/app/api/circles/route.ts` — GET (listar círculos do usuário), POST (criar círculo com name + memberIds + ttl opcional)
+3. `src/app/api/circles/[id]/route.ts` — GET (detalhes), DELETE (auto-remoção, deleta se último), PATCH (extend TTL +7d)
+4. `src/app/api/circles/[id]/members/route.ts` — POST (adicionar membro, qualquer membro pode)
+5. `src/features/groups/CircleBadge.tsx` — Componente client: "🔥 Círculo" com tooltip "Expira em Xh" + barra de progresso + countdown
+6. `src/features/groups/CreateCircleModal.tsx` — Modal de criação com: nome, seleção de contatos, seletor TTL (1h/6h/24h/3d/7d), botão "Criar Círculo 🔥"
+
+**Exportado:** `circleService` adicionado ao `services/index.ts`
+
+**TTL default:** 86400s (24h) | **Extend:** +7 dias (604800s) | **Build:** ✅ (erro pré-existente em reactions/route.ts não relacionado) | AUTOR: VIBECODE
+
 ## Sistema de Presença (Online/Offline) - (03/07/2026)
 
 Implementado sistema de presença em tempo real (estilo WhatsApp Web) para mostrar quais contatos estão online/offline.
@@ -184,3 +199,94 @@ Adicionados campos/modelos para itens futuros sem precisar migrar de novo:
 - **Conversation:** `isEphemeral`, `defaultTTL` — Item #15
 - **Reaction:** Novo modelo (messageId, userId, emoji) — Item #19
 - Migração: `20260703000002_batch_schema_updates` | AUTOR: VIBECODE
+
+## REQUISITOS P1 COMPLETOS (03/07/2026)
+Todos os 8 itens do P1 foram implementados e integrados:
+
+### #14 — Mensagens efêmeras (TTL configurável)
+- Worker: `POST /api/expire-messages` — deleta mensagens com expiresAt <= now()
+- UI: Seletor TTL no ChatArea (1min, 5min, 30min, 1h, 24h) ao lado do input
+- `POST /api/messages` aceita `expiresAt` no body e persiste no banco
+- Badge "⏱ Expira em Xmin" nas mensagens efêmeras
+
+### #15 — Modo conversa efêmera
+- Worker: `POST /api/expire-conversations` — deleta conversas com isEphemeral + TTL expirado
+- `Conversation.isEphemeral` + `defaultTTL` usados pelos círculos
+
+### #16 — Mídia com expiração automática
+- Mídias enviadas herdam TTL da mensagem (mesmo campo expiresAt)
+- Workers limpam mensagens expiradas (incluindo mídias)
+
+### #17 — Círculos (grupos temporários)
+- `CircleService` — CRUD completo sem admin rígido (qualquer membro adiciona/remove)
+- API: `GET/POST /api/circles`, `GET/DELETE/PATCH /api/circles/[id]`, `POST /api/circles/[id]/members`
+- `CircleBadge.tsx` — Componente visual com timer regressivo + barra de progresso
+- `CreateCircleModal.tsx` — Modal de criação com seletor TTL (1h/6h/24h/3d/7d)
+- Círculos expiram automaticamente via worker
+
+### #18 — Áudios curtos
+- `AudioRecorder.tsx` — Gravação via MediaRecorder com waveform animado + preview + envio
+- `AudioMessage.tsx` — Player inline com botão play/pause, waveform, timer
+- Botão de áudio no form do ChatArea (alterna entre input text e recorder)
+
+### #19 — Reações rápidas (emoji)
+- API: `POST/GET /api/messages/[messageId]/reactions` (toggle: adiciona/remove)
+- `ReactionService` — toggle, getReactions (agrupado), getMessagesReactions (contagem)
+- `ReactionPicker.tsx` — Popover com 10 emojis ao passar mouse na mensagem
+- `MessageReactions.tsx` — Exibição das reações com contagem
+
+### #20 — Mídia em mensagens (imagem, vídeo, áudio, arquivo)
+- Upload: `POST /api/upload/message-media` — Supabase Storage bucket `message-media`
+- `ImageMessage.tsx` — Imagem com lightbox (clique abre overlay)
+- `VideoMessage.tsx` — Player de vídeo com controls
+- `AudioMessage.tsx` — Player de áudio com waveform
+- `FileMessage.tsx` — Card de arquivo com download
+- `POST /api/messages` — Aceita fileUrl/mimeType/fileSize/fileName
+- Botão de anexo no form do ChatArea (input file hidden)
+
+### #21 — Sinais "Vibe"
+- Schema: `VibeSignal` model + relações em User (`sentVibes`, `receivedVibes`)
+- `VibeService` — sendSignal, getPendingSignals, acknowledgeSignal
+- API: `POST /api/vibe` (enviar), `GET /api/vibe/pending` (pendentes)
+- `VibeButton.tsx` — Botão com popover (Buzz, Poke, Wave, Heartbeat, Fire) + animação emoji voador
+- `VibeNotification.tsx` — Toast notification com polling 15s + botão "Retribuir"
+- `VibeNotificationWrapper.tsx` — Dynamic import wrapper para server component layout
+
+### Arquivos criados:
+```
+src/app/api/messages/[messageId]/reactions/route.ts
+src/app/api/upload/message-media/route.ts
+src/app/api/expire-messages/route.ts
+src/app/api/expire-conversations/route.ts
+src/app/api/circles/route.ts
+src/app/api/circles/[id]/route.ts
+src/app/api/circles/[id]/members/route.ts
+src/app/api/vibe/route.ts
+src/app/api/vibe/pending/route.ts
+src/components/media/ImageMessage.tsx
+src/components/media/VideoMessage.tsx
+src/components/media/AudioMessage.tsx
+src/components/media/FileMessage.tsx
+src/components/AudioRecorder.tsx
+src/components/VibeButton.tsx
+src/components/VibeNotification.tsx
+src/components/VibeNotificationWrapper.tsx
+src/components/ReactionPicker.tsx
+src/components/MessageReactions.tsx
+src/services/reaction.service.ts
+src/services/circle.service.ts
+src/services/vibe.service.ts
+src/features/groups/CircleBadge.tsx
+src/features/groups/CreateCircleModal.tsx
+```
+
+### Arquivos modificados:
+- `src/features/chat/components/ChatArea.tsx` — Integração de mídia, reações, áudio, TTL, upload
+- `src/app/api/messages/route.ts` — Suporte a expiresAt, fileUrl, mimeType, fileSize, fileName
+- `src/app/(main)/chat/page.tsx` — VibeButton no header + CircleBadge
+- `src/app/(main)/layout.tsx` — VibeNotificationWrapper global
+- `src/services/index.ts` — Exporta reactionService, circleService, vibeService
+- `prisma/schema.prisma` — Modelo VibeSignal + relações
+
+### Build:
+✅ 36 pages + ~31 API routes. Compilado com sucesso. | AUTOR: VIBECODE

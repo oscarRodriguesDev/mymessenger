@@ -35,6 +35,8 @@ model User {
   ownedConversations    Conversation[]       @relation("ConversationOwner")
   webSessions           WebSession[]
   reactions             Reaction[]
+  sentVibes             VibeSignal[]         @relation("SentVibes")
+  receivedVibes         VibeSignal[]         @relation("ReceivedVibes")
 
   @@index([username])
   @@index([email])
@@ -238,4 +240,21 @@ model WebSession {
   @@index([authId])
   @@index([expiresAt])
   @@map("web_sessions")
+}
+
+model VibeSignal {
+  id              String   @id @default(uuid())
+  senderId        String
+  receiverId      String
+  conversationId  String?
+  type            String   @default("buzz") // "buzz", "poke", "wave", "heartbeat", "fire"
+  createdAt       DateTime @default(now())
+
+  sender          User     @relation("SentVibes", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver        User     @relation("ReceivedVibes", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([receiverId])
+  @@index([conversationId])
+  @@index([createdAt(sort: Desc)])
+  @@map("vibe_signals")
 }

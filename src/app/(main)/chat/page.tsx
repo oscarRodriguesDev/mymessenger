@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { ChatArea } from '@/features/chat/components/ChatArea';
 import { usePresence } from '@/hooks/usePresence';
+import VibeButton from '@/components/VibeButton';
+import { CircleBadge } from '@/features/groups/CircleBadge';
 
 interface Member {
   id: string;
@@ -28,6 +30,8 @@ interface Conversation {
   lastMessage: LastMessage | null;
   members: Member[];
   updatedAt: string;
+  isEphemeral?: boolean;
+  defaultTTL?: number | null;
 }
 
 export default function ChatPage() {
@@ -129,13 +133,30 @@ export default function ChatPage() {
             status={otherMemberStatus}
           />
           <div className="flex-1 min-w-0">
-            <h1 className="text-base font-semibold truncate sm:text-lg">{conversationName}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-semibold truncate sm:text-lg">{conversationName}</h1>
+              {/* #17: Badge de círculo */}
+              {selectedConversation?.isEphemeral && selectedConversation.defaultTTL && (
+                <CircleBadge
+                  createdAt={selectedConversation.updatedAt}
+                  defaultTTL={selectedConversation.defaultTTL}
+                />
+              )}
+            </div>
             {otherMemberStatus && (
               <p className="text-xs text-muted-foreground">
                 {otherMemberStatus === 'online' ? 'Online' : 'Offline'}
               </p>
             )}
           </div>
+          {/* #21: Botão de Vibe */}
+          {selectedConversation && (
+            <VibeButton
+              receiverId={selectedConversation.members.find(m => m.id !== profile?.id)?.id || ''}
+              conversationId={selectedConversation.id}
+              dropdownUp={false}
+            />
+          )}
         </header>
         <ChatArea
           conversationId={selectedConversationId}

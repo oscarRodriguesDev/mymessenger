@@ -47,20 +47,20 @@
 
 | #   | Requisito                                 | Status | Detalhes                                                                      |
 | --- | ----------------------------------------- | ------ | ----------------------------------------------------------------------------- |
-| 14  | Mensagens efêmeras (TTL configurável)     | 🔶   | Schema: `Message.expiresAt`. **Sem worker de expiração nem UI.**                    |
-| 15  | Modo conversa efêmera por chat            | 🔶   | Schema: `Conversation.isEphemeral` + `defaultTTL`. **Sem worker nem UI.**           |
-| 16  | Mídia com expiração automática            | ❌     | Sem upload de mídia em mensagens.                                                   |
-| 17  | Círculos (grupos leves, temporários)      | ❌     | Só grupos tradicionais (permanentes, admin). Sem participação temporária.           |
-| 18  | Áudios curtos como padrão                 | ❌     | Sem gravação, upload ou player de áudio.                                            |
-| 19  | Reações rápidas (emoji)                   | 🔶   | Schema: modelo `Reaction` criado. **Sem API nem UI.**                               |
-| 20  | Resposta com mídia (imagem, áudio, vídeo) | 🔶   | Schema: `Message.mimeType`, `fileSize`, `fileName`. **Sem upload nem UI.**          |
-| 21  | Sinais "vibe" (interações não textuais)   | ❌     | Não implementado.                                                                   |
+| 14  | Mensagens efêmeras (TTL configurável)     | ✅    | Worker `POST /api/expire-messages` + UI seletor TTL no envio (1min-24h). `Message.expiresAt` usado no create. |
+| 15  | Modo conversa efêmera por chat            | ✅    | Worker `POST /api/expire-conversations` + `Conversation.isEphemeral` + `defaultTTL`. Círculos usam isso. |
+| 16  | Mídia com expiração automática            | ✅    | Mídias enviadas em chats efêmeros/herdam TTL da mensagem. Workers limpam mídias expiradas. |
+| 17  | Círculos (grupos leves, temporários)      | ✅    | API completa (`/api/circles/*`). CircleBadge com timer regressivo + CreateCircleModal com seletor TTL. Sem admin rígido. |
+| 18  | Áudios curtos como padrão                 | ✅    | AudioRecorder (MediaRecorder + waveform + preview) + AudioMessage player inline. Upload via `/api/upload/message-media`. |
+| 19  | Reações rápidas (emoji)                   | ✅    | API `POST/GET /api/messages/[messageId]/reactions` + ReactionPicker (hover) + MessageReactions (exibição). |
+| 20  | Resposta com mídia (imagem, áudio, vídeo) | ✅    | Upload `/api/upload/message-media`. Componentes: ImageMessage (lightbox), VideoMessage (player), AudioMessage, FileMessage (download). |
+| 21  | Sinais "vibe" (interações não textuais)   | ✅    | API `POST /api/vibe` + `GET /api/vibe/pending`. VibeButton (5 tipos) + VibeNotification (toast com retribuir). |
 
 ### Itens P1 — Resumo
 
-- **✅ Completos:** Nenhum
-- **🔶 Pendentes:** 14, 15, 19, 20 (schema pronto, falta implementação)
-- **❌ Faltando:** 16, 17, 18, 21
+- **✅ Completos:** 14, 15, 16, 17, 18, 19, 20, 21 (TODOS)
+- **🔶 Pendentes:** Nenhum
+- **❌ Faltando:** Nenhum
 
 ---
 

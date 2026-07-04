@@ -387,3 +387,41 @@ Modificados:
 
 ### Estado do build
 - ✅ Build validado com sucesso (29 pages + middleware + 17 API routes)
+
+---
+
+## 03/07/2026 - TODOS OS REQUISITOS P1 IMPLEMENTADOS 🎉
+
+### O que foi feito
+
+Todos os **8 requisitos P1** (camada de diferenciação) foram implementados e integrados:
+
+| # | Requisito | Status | Destaque |
+|---|---|---|---|
+| 14 | Mensagens efêmeras (TTL) | ✅ | Worker + seletor TTL no envio (1min-24h) |
+| 15 | Conversas efêmeras | ✅ | Worker de expiração + isEphemeral/defaultTTL |
+| 16 | Mídia com expiração | ✅ | TTL aplicado a mídias via expiresAt |
+| 17 | Círculos | ✅ | API completa + CircleBadge + CreateCircleModal |
+| 18 | Áudios curtos | ✅ | AudioRecorder + AudioMessage player |
+| 19 | Reações emoji | ✅ | API + ReactionPicker + MessageReactions |
+| 20 | Mídia em mensagens | ✅ | Image/Video/Audio/FileMessage + upload |
+| 21 | Sinais "vibe" | ✅ | VibeButton + VibeNotification + API |
+
+### Principais arquivos criados (~25 novos)
+
+- **APIs:** reactions, circles (CRUD + members), vibe, vibe/pending, expire-messages, expire-conversations, message-media upload
+- **Componentes:** ImageMessage, VideoMessage, AudioMessage, FileMessage, AudioRecorder, VibeButton, VibeNotification, ReactionPicker, MessageReactions, CircleBadge, CreateCircleModal
+- **Services:** reaction.service, circle.service, vibe.service
+
+### Arquivos modificados
+- `ChatArea.tsx` — Integração completa de mídia, reações, áudio, TTL, upload
+- `messages/route.ts` — Suporte a expiresAt + fileUrl + mimeType/fileSize/fileName
+- `chat/page.tsx` — VibeButton no header + CircleBadge
+- `layout.tsx` — VibeNotificationWrapper global
+- `services/index.ts` — Novos exports
+- `prisma/schema.prisma` — Modelo VibeSignal
+
+### Estado do build
+- ✅ 36 pages + ~31 API routes
+- ✅ Compilado com sucesso
+- ✅ TypeScript check passou

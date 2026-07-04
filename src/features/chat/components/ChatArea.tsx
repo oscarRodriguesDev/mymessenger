@@ -5,11 +5,18 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
-import { GrFormClock, GrCheckmark } from "react-icons/gr";
+import { GrFormClock, GrCheckmark, GrAttachment, GrDocument, GrImage, GrVideo, GrMusic } from "react-icons/gr";
 import { IoCheckmarkDoneSharp } from "react-icons/io5";
 import { MessageStatus } from '@/features/chat/message-status';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { TypingIndicator } from '@/components/TypingIndicator';
+import { ReactionPicker } from '@/components/ReactionPicker';
+import { MessageReactions } from '@/components/MessageReactions';
+import { ImageMessage } from '@/components/media/ImageMessage';
+import { VideoMessage } from '@/components/media/VideoMessage';
+import { AudioMessage } from '@/components/media/AudioMessage';
+import { FileMessage } from '@/components/media/FileMessage';
+import { AudioRecorder } from '@/components/AudioRecorder';
 
 // Mapeia nomes de colunas do banco (snake_case) para camelCase
 function mapPayload(raw: Record<string, unknown>) {
@@ -20,9 +27,13 @@ function mapPayload(raw: Record<string, unknown>) {
     type: raw.type as string,
     text: raw.text as string | null,
     fileUrl: (raw.fileUrl ?? raw.file_url) as string | null,
+    mimeType: raw.mimeType as string | null,
+    fileSize: raw.fileSize as number | null,
+    fileName: raw.fileName as string | null,
     status: (raw.status as MessageStatus) ?? MessageStatus.enviada,
     createdAt: (raw.createdAt ?? raw.created_at) as string,
     updatedAt: (raw.updatedAt ?? raw.updated_at) as string,
+    reactions: (raw.reactions as Record<string, number>) ?? {},
   };
 }
 
@@ -40,11 +51,16 @@ interface Message {
   type: string;
   text: string | null;
   fileUrl: string | null;
+  mimeType?: string | null;
+  fileSize?: number | null;
+  fileName?: string | null;
   status: MessageStatus;
   createdAt: string;
+  expiresAt?: string | null;
   sender: Sender;
   isOptimistic?: boolean;
   clientMessageId?: string;
+  reactions?: Record<string, number>;
 }
 
 interface ChatAreaProps {
@@ -92,9 +108,16 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+  const [showReactionFor, setShowReactionFor] = useState<string | null>(null);
+  const [showAudioRecorder, setShowAudioRecorder] = useState(false);
+  const [showTtlSelector, setShowTtlSelector] = useState(false);
+  const [ttlSeconds, setTtlSeconds] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const optimisticIdRef = useRef(0);
   const clientMsgIdRef = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Item 11: Indicador de digitação
   const { typingUserNames, setTyping } = useTypingIndicator({
@@ -102,6 +125,199 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
     currentUserId,
     enabled: typingIndicatorEnabled,
   });
+
+  // Item 19: Toggle reação
+  const toggleReaction = useCallback(async (messageId: string, emoji: string) => {
+    try {
+      const res = await fetch(`/api/messages/${messageId}/reactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Atualiza localmente com base no resultado
+        setMessages(prev => prev.map(msg => {
+          if (msg.id !== messageId) return msg;
+          const reactions = { ...(msg.reactions || {}) };
+          if (data.added) {
+            reactions[emoji] = (reactions[emoji] || 0) + 1;
+          } else {
+            if (reactions[emoji] <= 1) {
+              delete reactions[emoji];
+            } else {
+              reactions[emoji]--;
+            }
+          }
+          return { ...msg, reactions };
+        }));
+      }
+    } catch {
+      // Silêncio
+    }
+  }, []);
+
+  // Item 20: Upload de mídia
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const uploadRes = await fetch('/api/upload/message-media', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadRes.ok) {
+        console.error('Upload failed');
+        return;
+      }
+
+      const mediaData = await uploadRes.json();
+
+      // Enviar mensagem com a mídia
+      const clientMessageId = `${currentUserId}-${Date.now()}-${clientMsgIdRef.current++}`;
+      const optimisticId = `optimistic-${Date.now()}-${optimisticIdRef.current++}`;
+
+      let messageType = 'file';
+      if (mediaData.mimeType?.startsWith('image/')) messageType = 'image';
+      else if (mediaData.mimeType?.startsWith('video/')) messageType = 'video';
+      else if (mediaData.mimeType?.startsWith('audio/')) messageType = 'audio';
+
+      const optimisticMessage: Message = {
+        id: optimisticId,
+        conversationId,
+        senderId: currentUserId,
+        type: messageType,
+        text: null,
+        fileUrl: mediaData.fileUrl,
+        mimeType: mediaData.mimeType,
+        fileSize: mediaData.fileSize,
+        fileName: mediaData.fileName,
+        clientMessageId,
+        status: MessageStatus.nao_enviada,
+        createdAt: new Date().toISOString(),
+        sender: members.find(m => m.id === currentUserId) ?? { id: currentUserId, username: '', fullName: 'You', avatarUrl: null },
+        isOptimistic: true,
+      };
+
+      setMessages(prev => [...prev, optimisticMessage]);
+
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId,
+          clientMessageId,
+          fileUrl: mediaData.fileUrl,
+          mimeType: mediaData.mimeType,
+          fileSize: mediaData.fileSize,
+          fileName: mediaData.fileName,
+        }),
+      });
+
+      if (res.ok) {
+        const message = await res.json();
+        setMessages(prev => prev.map(msg =>
+          msg.id === optimisticId
+            ? { ...message, isOptimistic: false, status: MessageStatus.enviada }
+            : msg
+        ));
+      } else {
+        setMessages(prev => prev.map(msg =>
+          msg.id === optimisticId
+            ? { ...msg, status: MessageStatus.nao_enviada }
+            : msg
+        ));
+      }
+    } catch {
+      console.error('Upload failed');
+    } finally {
+      setUploadingFile(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [conversationId, currentUserId, members]);
+
+  // Item 18: Envio de áudio gravado
+  const handleAudioSend = useCallback(async (audioBlob: Blob) => {
+    setUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', audioBlob, `audio-${Date.now()}.webm`);
+
+      const uploadRes = await fetch('/api/upload/message-media', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadRes.ok) {
+        console.error('Audio upload failed');
+        return;
+      }
+
+      const mediaData = await uploadRes.json();
+
+      const clientMessageId = `${currentUserId}-${Date.now()}-${clientMsgIdRef.current++}`;
+      const optimisticId = `optimistic-${Date.now()}-${optimisticIdRef.current++}`;
+
+      const optimisticMessage: Message = {
+        id: optimisticId,
+        conversationId,
+        senderId: currentUserId,
+        type: 'audio',
+        text: null,
+        fileUrl: mediaData.fileUrl,
+        mimeType: mediaData.mimeType,
+        fileSize: mediaData.fileSize,
+        fileName: mediaData.fileName,
+        clientMessageId,
+        status: MessageStatus.nao_enviada,
+        createdAt: new Date().toISOString(),
+        sender: members.find(m => m.id === currentUserId) ?? { id: currentUserId, username: '', fullName: 'You', avatarUrl: null },
+        isOptimistic: true,
+      };
+
+      setMessages(prev => [...prev, optimisticMessage]);
+
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId,
+          clientMessageId,
+          fileUrl: mediaData.fileUrl,
+          mimeType: mediaData.mimeType,
+          fileSize: mediaData.fileSize,
+          fileName: mediaData.fileName,
+          expiresAt: ttlSeconds ? new Date(Date.now() + ttlSeconds * 1000).toISOString() : undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const message = await res.json();
+        setMessages(prev => prev.map(msg =>
+          msg.id === optimisticId
+            ? { ...message, isOptimistic: false, status: MessageStatus.enviada }
+            : msg
+        ));
+        setShowAudioRecorder(false);
+      } else {
+        setMessages(prev => prev.map(msg =>
+          msg.id === optimisticId
+            ? { ...msg, status: MessageStatus.nao_enviada }
+            : msg
+        ));
+      }
+    } catch {
+      console.error('Audio send failed');
+    } finally {
+      setUploadingFile(false);
+    }
+  }, [conversationId, currentUserId, members, ttlSeconds]);
 
   // Marca uma mensagem como lida no servidor
   const markAsLida = (messageId: string) => {
@@ -207,13 +423,17 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
   }, [messages]);
 
   // Função reutilizável para enviar mensagem (nova ou retry)
-  const sendMessage = useCallback(async (text: string, clientMessageId: string, optimisticId: string) => {
+  const sendMessage = useCallback(async (text: string, clientMessageId: string, optimisticId: string, expiresIn?: number) => {
     setSending(true);
     try {
+      const body: Record<string, unknown> = { conversationId, text, clientMessageId };
+      if (expiresIn) {
+        body.expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+      }
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId, text, clientMessageId }),
+        body: JSON.stringify(body),
       });
 
       if (res.ok) {
@@ -271,7 +491,9 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
     const textToSend = newMessage.trim();
     setNewMessage('');
 
-    await sendMessage(textToSend, clientMessageId, optimisticId);
+    await sendMessage(textToSend, clientMessageId, optimisticId, ttlSeconds ?? undefined);
+    setTtlSeconds(null);
+    setShowTtlSelector(false);
   };
 
   // Retry de mensagem que falhou
@@ -281,8 +503,40 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
       m.id === msg.id ? { ...m, status: MessageStatus.nao_enviada } : m
     ));
     const clientMessageId = msg.clientMessageId || `${currentUserId}-${Date.now()}-retry`;
-    await sendMessage(msg.text || '', clientMessageId, msg.id);
-  }, [sending, sendMessage, currentUserId]);
+    // Re-envia incluindo fileUrl se houver
+    if (msg.fileUrl) {
+      try {
+        const res = await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversationId,
+            clientMessageId,
+            fileUrl: msg.fileUrl,
+            mimeType: msg.mimeType,
+            fileSize: msg.fileSize,
+            fileName: msg.fileName,
+          }),
+        });
+        if (res.ok) {
+          const message = await res.json();
+          setMessages(prev => prev.map(m =>
+            m.id === msg.id ? { ...message, isOptimistic: false, status: MessageStatus.enviada } : m
+          ));
+        } else {
+          setMessages(prev => prev.map(m =>
+            m.id === msg.id ? { ...m, status: MessageStatus.nao_enviada } : m
+          ));
+        }
+      } catch {
+        setMessages(prev => prev.map(m =>
+          m.id === msg.id ? { ...m, status: MessageStatus.nao_enviada } : m
+        ));
+      }
+    } else {
+      await sendMessage(msg.text || '', clientMessageId, msg.id);
+    }
+  }, [sending, sendMessage, currentUserId, conversationId]);
 
   if (loading) {
     return (
@@ -309,6 +563,8 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
             <div
               key={message.id}
               className={`flex ${isOwn ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-200`}
+              onMouseEnter={() => setHoveredMessageId(message.id)}
+              onMouseLeave={() => { setHoveredMessageId(null); setShowReactionFor(null); }}
             >
               <div
                 className={`flex items-end gap-2 max-w-[85%] sm:gap-3 sm:max-w-[70%] ${isOwn ? 'flex-row-reverse' : ''
@@ -321,40 +577,105 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
                     size="sm"
                   />
                 )}
-                <div
-                  className={`rounded-2xl px-3 py-2 sm:px-5 sm:py-3 ${isOwn
-                    ? 'bg-[#3d6b4f] text-primary-foreground shadow-lg'
-                    : 'bg-secondary text-foreground border border-border'
-                    }`}
-                >
-                  {!isOwn && (
-                    <p className="text-xs font-semibold mb-0.5 text-muted-foreground">
-                      {message.sender.fullName}
-                    </p>
-                  )}
-                  <p className="text-xs break-words sm:text-sm">{message.text}</p>
-                  <div className="flex items-center justify-end gap-1 mt-1 sm:gap-2 sm:mt-2">
-                    {isOwn && message.status === MessageStatus.nao_enviada && (
-                      <button
-                        onClick={() => handleRetry(message)}
-                        disabled={sending}
-                        className="text-xs text-red-400 hover:text-red-300 transition-colors mr-1"
-                        title="Tentar novamente"
-                      >
-                        Reenviar
-                      </button>
+                <div className="relative">
+                  {/* Renderização baseada no tipo da mensagem */}
+                  <div
+                    className={`rounded-2xl px-3 py-2 sm:px-5 sm:py-3 ${isOwn
+                      ? 'bg-[#3d6b4f] text-primary-foreground shadow-lg'
+                      : 'bg-secondary text-foreground border border-border'
+                      }`}
+                  >
+                    {!isOwn && (
+                      <p className="text-xs font-semibold mb-0.5 text-muted-foreground">
+                        {message.sender.fullName}
+                      </p>
                     )}
-                    <span
-                      className={`text-xs ${isOwn ? 'text-primary-foreground/60' : 'text-muted-foreground'
-                        }`}
-                    >
-                      {new Date(message.createdAt).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                    <MessageStatusIcon status={message.status} isOwn={isOwn} />
+
+                    {/* #20: Mídia - Imagem */}
+                    {message.type === 'image' && message.fileUrl && (
+                      <ImageMessage fileUrl={message.fileUrl} fileName={message.fileName || 'Imagem'} isOwn={isOwn} />
+                    )}
+
+                    {/* #20: Mídia - Vídeo */}
+                    {message.type === 'video' && message.fileUrl && (
+                      <VideoMessage fileUrl={message.fileUrl} fileName={message.fileName || 'Vídeo'} isOwn={isOwn} />
+                    )}
+
+                    {/* #18: Mídia - Áudio */}
+                    {message.type === 'audio' && message.fileUrl && (
+                      <AudioMessage fileUrl={message.fileUrl} fileName={message.fileName || 'Áudio'} isOwn={isOwn} />
+                    )}
+
+                    {/* #20: Mídia - Arquivo */}
+                    {message.type === 'file' && message.fileUrl && (
+                      <FileMessage fileUrl={message.fileUrl} fileName={message.fileName || 'Arquivo'} fileSize={message.fileSize} isOwn={isOwn} />
+                    )}
+
+                    {/* Texto */}
+                    {message.text && (
+                      <p className="text-xs break-words sm:text-sm">{message.text}</p>
+                    )}
+
+                    {/* #14: Exibir badge de expiração se mensagem for efêmera */}
+                    {message.expiresAt && (
+                      <div className="mt-1">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-yellow-500/10 px-1.5 py-0.5 text-[10px] font-medium text-yellow-600 dark:text-yellow-400">
+                          ⏱ Expira em {Math.max(0, Math.floor((new Date(message.expiresAt).getTime() - Date.now()) / 1000 / 60))}min
+                        </span>
+                      </div>
+                    )}
+
+                    {/* #19: Reações - exibir abaixo do conteúdo */}
+                    {message.reactions && Object.keys(message.reactions).length > 0 && (
+                      <div className="mt-1">
+                        <MessageReactions
+                          reactions={message.reactions}
+                          onEmojiClick={(emoji) => toggleReaction(message.id, emoji)}
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-1 mt-1 sm:gap-2 sm:mt-2">
+                      {isOwn && message.status === MessageStatus.nao_enviada && (
+                        <button
+                          onClick={() => handleRetry(message)}
+                          disabled={sending}
+                          className="text-xs text-red-400 hover:text-red-300 transition-colors mr-1"
+                          title="Tentar novamente"
+                        >
+                          Reenviar
+                        </button>
+                      )}
+                      <span
+                        className={`text-xs ${isOwn ? 'text-primary-foreground/60' : 'text-muted-foreground'
+                          }`}
+                      >
+                        {new Date(message.createdAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                      <MessageStatusIcon status={message.status} isOwn={isOwn} />
+                    </div>
                   </div>
+
+                  {/* #19: Botão de reação que aparece no hover */}
+                  {hoveredMessageId === message.id && (
+                    <div className={`absolute -top-3 ${isOwn ? 'left-0' : 'right-0'}`}>
+                      <ReactionPicker
+                        isOpen={showReactionFor === message.id}
+                        onSelect={(emoji) => toggleReaction(message.id, emoji)}
+                        onClose={() => setShowReactionFor(null)}
+                      />
+                      <button
+                        onClick={() => setShowReactionFor(showReactionFor === message.id ? null : message.id)}
+                        className="flex h-6 w-6 items-center justify-center rounded-full bg-card border border-border text-xs shadow-sm hover:bg-secondary transition-colors"
+                        title="Reagir"
+                      >
+                        😊
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -365,22 +686,117 @@ export function ChatArea({ conversationId, currentUserId, members, typingIndicat
 
       <TypingIndicator typingUserNames={typingUserNames} />
       <form onSubmit={handleSend} className="border-t border-border bg-card/50 p-3 backdrop-blur-sm sm:p-4">
+        {/* #20: TTL Selector */}
+        {showTtlSelector && (
+          <div className="mb-2 flex items-center gap-2 px-1">
+            <span className="text-xs text-muted-foreground">⏱ Expirar em:</span>
+            {[60, 300, 1800, 3600, 86400].map(sec => {
+              const label = sec < 60 ? `${sec}s` :
+                sec < 3600 ? `${sec / 60}min` :
+                sec < 86400 ? `${sec / 3600}h` :
+                `${sec / 86400}d`;
+              return (
+                <button
+                  key={sec}
+                  type="button"
+                  onClick={() => setTtlSeconds(ttlSeconds === sec ? null : sec)}
+                  className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                    ttlSeconds === sec
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-secondary text-muted-foreground border-border hover:bg-secondary/80'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            {ttlSeconds && (
+              <button
+                type="button"
+                onClick={() => { setTtlSeconds(null); setShowTtlSelector(false); }}
+                className="px-2 py-1 text-xs text-red-400 hover:text-red-300"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2 px-1 sm:gap-3 sm:px-0">
-          <Input
-            id="message"
-            placeholder="Digite uma mensagem..."
-            value={newMessage}
-            onChange={(e) => {
-              setNewMessage(e.target.value);
-              setTyping(e.target.value.length > 0);
-            }}
-            onBlur={() => setTyping(false)}
-            disabled={sending}
-            className="flex-1 text-sm sm:text-base"
+          {/* Botão de anexo (upload de mídia) */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.zip"
+            className="hidden"
+            onChange={handleFileSelect}
           />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingFile || showAudioRecorder}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40"
+            title="Anexar arquivo"
+          >
+            {uploadingFile ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            ) : (
+              <GrAttachment className="h-5 w-5" />
+            )}
+          </button>
+
+          {/* Botão de áudio */}
+          <button
+            type="button"
+            onClick={() => setShowAudioRecorder(!showAudioRecorder)}
+            disabled={uploadingFile}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40 ${
+              showAudioRecorder
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+            }`}
+            title="Gravar áudio"
+          >
+            <GrMusic className="h-4 w-4" />
+          </button>
+
+          {/* Botão de TTL (mensagem efêmera) */}
+          <button
+            type="button"
+            onClick={() => setShowTtlSelector(!showTtlSelector)}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
+              showTtlSelector || ttlSeconds
+                ? 'bg-yellow-500/20 text-yellow-500'
+                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+            }`}
+            title="Mensagem temporária"
+          >
+            <span className="text-sm">⏱</span>
+          </button>
+
+          {/* Audio Recorder (substitui o input quando ativo) */}
+          {showAudioRecorder ? (
+            <div className="flex-1">
+              <AudioRecorder onSend={handleAudioSend} disabled={sending || uploadingFile} />
+            </div>
+          ) : (
+            <Input
+              id="message"
+              placeholder="Digite uma mensagem..."
+              value={newMessage}
+              onChange={(e) => {
+                setNewMessage(e.target.value);
+                setTyping(e.target.value.length > 0);
+              }}
+              onBlur={() => setTyping(false)}
+              disabled={sending || uploadingFile}
+              className="flex-1 text-sm sm:text-base"
+            />
+          )}
+
           <Button
             type="submit"
-            disabled={!newMessage.trim() || sending}
+            disabled={(!newMessage.trim() && !showAudioRecorder) || sending || uploadingFile}
             className="px-4 sm:px-6 text-sm sm:text-base"
           >
             {sending ? '...' : 'Enviar'}
